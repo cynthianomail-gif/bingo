@@ -32,14 +32,15 @@
     background-image: radial-gradient(circle at 50% 100%, transparent 9.5px, #a8d4ff 10.5px, transparent 11.5px);
     background-size: 36px 18px;
   }
+  /* 整個畫面是固定 1600×900 的橫版，再等比縮放塞進瀏覽器視窗（不裁切、不變形） */
+  #stageWrap { position: fixed; inset: 0; z-index: 1; overflow: hidden; }
   #app {
-    position: relative; z-index: 1; height: 100%;
+    position: absolute; top: 0; left: 0; width: 1600px; height: 900px;
+    transform-origin: 0 0;
     display: grid; grid-template-columns: 268px minmax(440px, 1fr) 360px;
-    gap: 12px; padding: 12px; max-width: 1780px; margin: 0 auto; align-items: stretch;
+    gap: 12px; padding: 12px; align-items: stretch;
   }
   .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; height: 100%; overflow: hidden; }
-  @media (max-width: 1340px) { #app { grid-template-columns: 232px minmax(380px, 1fr) 320px; gap: 9px; padding: 9px; } }
-  @media (max-height: 800px) { .card { padding: 10px 12px; } .col, #app { gap: 9px; } }
 
   /* 可伸縮的卡片：內容自己捲，頁面不捲 */
   .card.grow { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -306,28 +307,44 @@
   .mb .mb-n { font-size: 10px; font-weight: 400; color: var(--muted); }
   .mb.hit .mb-n { color: #bdf3d6; }
 
-  /* ---- 我的座位：依盤數堆起來的壽司盤 ---- */
-  .seat-grp { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+  /* ---- 我的座位：一疊實體壽司盤，上面擺這組的壽司、正面印當選額（照實機） ---- */
+  .seat-grp { display: flex; align-items: flex-end; gap: 10px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
   .seat-grp:last-child { border-bottom: 0; }
-  .seat-head { display: flex; align-items: baseline; gap: 6px; font-size: 11.5px; color: var(--muted); }
+  .seat-col { min-width: 0; flex: 1; }
+  .seat-head { display: flex; align-items: baseline; gap: 6px; font-size: 11.5px; color: var(--muted); margin-top: 4px; }
   .seat-head b { font-size: 13px; color: #dde7ff; }
-  .seat-head .sh-pay { margin-left: auto; color: #ffa9d0; font-weight: 800; font-variant-numeric: tabular-nums; }
   .seat-head .sh-won { margin-left: auto; color: var(--jade-2); font-weight: 800; }
   .seat-head .sh-lost { margin-left: auto; color: var(--muted-2); }
-  .stack { position: relative; margin-top: 6px; height: 74px; }
+  /* 疊子上方的壽司牌 */
+  .tiles { display: flex; gap: 3px; }
+  .tile {
+    display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px;
+    background: #1a2440; border: 1.5px solid #46587f; box-shadow: 0 2px 4px rgba(0,0,0,.5);
+  }
+  .tile.off { opacity: .72; }
+  .tile.on { border-color: var(--jade-2); box-shadow: 0 0 10px rgba(110,224,164,.6); }
+  .free-badge {
+    display: inline-block; margin-bottom: 3px; padding: 1px 8px; border-radius: 999px;
+    font-size: 10px; font-weight: 900; letter-spacing: 1px; color: #2b0f3d;
+    background: linear-gradient(90deg, #ff9ed2, #ffe08a, #8ee7c4, #9ec7ff);
+  }
+  /* 疊子本體 */
+  .stack { position: relative; width: 128px; flex: 0 0 128px; }
   .stack .pl {
-    position: absolute; left: 0; display: flex; align-items: center; justify-content: center; gap: 2px;
-    padding: 3px 8px; border-radius: 999px;
-    background: linear-gradient(180deg, #f4f7fb, #c3ccdb);
-    border: 1px solid #8f9bb0; box-shadow: 0 2px 3px rgba(0,0,0,.45);
+    position: absolute; left: 0; right: 0; height: 7px; border-radius: 999px;
+    background: linear-gradient(180deg, #f4f7fb 40%, #aab4c6);
+    border: 1px solid #8f9bb0; box-shadow: 0 1px 0 rgba(0,0,0,.35);
   }
-  .stack .pl.red { background: linear-gradient(180deg, #ffd9d3, #e08d80); border-color: #b4645a; }
-  .stack .pl.gold { background: linear-gradient(180deg, #ffe9ae, #d8ab48); border-color: #a97f22; }
-  .stack .pl img { display: block; }
-  .stack .more {
-    position: absolute; right: 2px; bottom: 0; font-size: 12px; font-weight: 800; color: var(--gold-2);
-    font-variant-numeric: tabular-nums;
+  .stack .pl.red { background: linear-gradient(180deg, #ffd9d3 40%, #d3796a); border-color: #b4645a; }
+  .stack .pl.gold { background: linear-gradient(180deg, #ffe9ae 40%, #cb9c37); border-color: #a97f22; }
+  .stack.done .pl { box-shadow: 0 0 9px rgba(110,224,164,.55); }
+  .stack .pay {
+    position: absolute; left: 0; right: 0; bottom: 50%; transform: translateY(50%);
+    text-align: center; font-size: 21px; font-weight: 900; letter-spacing: 1px;
+    color: #fff6da; font-variant-numeric: tabular-nums;
+    text-shadow: 0 2px 0 #6b4a10, 0 0 12px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.9);
   }
+  .stack.done .pay { color: #d6ffe9; text-shadow: 0 2px 0 #14512f, 0 0 12px rgba(0,0,0,.9); }
   .hint { font-size: 10.5px; color: var(--muted-2); line-height: 1.6; margin: 6px 0; }
   .kv { padding: 5px 0; }
   .sub { margin-bottom: 8px; }
@@ -337,6 +354,7 @@
 
 <div id="toast"><div class="toast-in" id="toastIn"></div></div>
 
+<div id="stageWrap">
 <div id="app">
   <!-- ===== 左欄：機種資訊／中獎紀錄／累計／玩家 ===== -->
   <div class="col left">
@@ -372,8 +390,8 @@
       <div id="myBets" class="mybets"></div>
 
       <div class="stage" id="stage">
-        <canvas id="wheel" width="574" height="574"></canvas>
-        <canvas id="fish" width="574" height="574"></canvas>
+        <canvas id="wheel" width="861" height="861"></canvas>
+        <canvas id="fish" width="861" height="861"></canvas>
       </div>
 
       <!-- 魚機控制條（魚機接管轉盤時才出現） -->
@@ -435,6 +453,7 @@
     </div>
   </div>
 </div>
+</div>
 
 <!-- 調參面板 -->
 <div id="tune">
@@ -455,7 +474,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'A4';
+const APP_BUILD = 'A5';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -1164,8 +1183,8 @@ function spawnFish(now) {
       : (need.length && Math.random() < 0.3 ? pick(need)
         : (Math.random() < 0.6 ? pick(S.kinds) : pick(SUSHI).id));
     return {
-      x: fromLeft ? -30 : fcv.width + 30,
-      y: 40 + Math.random() * (fcv.height - 80),
+      x: fromLeft ? -30 : GW + 30,
+      y: 40 + Math.random() * (GH - 80),
       vx: (fromLeft ? 1 : -1) * (40 + Math.random() * 70) * (opt.school ? 0.7 : 1),
       phase: Math.random() * 6.28, amp: 6 + Math.random() * 14,
       r: opt.school ? 15 : (opt.shun ? 22 : 13 + Math.random() * 6),
@@ -1213,14 +1232,15 @@ function fishLoop(now) {
     f.phase += dt * 2.2;
     f.dy = Math.sin(f.phase) * f.amp;
   });
-  FISH.list = FISH.list.filter(f => !f.dead && f.x > -60 && f.x < fcv.width + 60);
+  FISH.list = FISH.list.filter(f => !f.dead && f.x > -60 && f.x < GW + 60);
   drawFish(now);
   if (left <= 0) { endFishing(); return; }
   FISH.raf = requestAnimationFrame(fishLoop);
 }
 
 function drawFish(now) {
-  const W = fcv.width, H = fcv.height;
+  const W = GW, H = GH;
+  fx.setTransform(HD, 0, 0, HD, 0, 0);
   fx.clearRect(0, 0, W, H);
   // 海水：上亮下深
   const g = fx.createLinearGradient(0, 0, 0, H);
@@ -1363,8 +1383,8 @@ function catchPay(f) {
 fcv.onclick = e => {
   if (S.phase !== 'FISH') return;
   const r = fcv.getBoundingClientRect();
-  const x = (e.clientX - r.left) * (fcv.width / r.width);
-  const y = (e.clientY - r.top) * (fcv.height / r.height);
+  const x = (e.clientX - r.left) * (GW / r.width);
+  const y = (e.clientY - r.top) * (GH / r.height);
   const cost = FISH.weapon === 'net' ? T.fish.netCost : T.fish.grabCost;
   if (S.balance < cost) { log('餘額不足，撈不動了', 'b'); return; }
   S.balance -= cost; S.totalBet += cost; FISH.spent += cost;   // 發射就付費，撈不到也算投入
@@ -1634,6 +1654,9 @@ function drawFishShape(c, x, y, r, dir, type, t, opt) {
 }
 
 /* ============ 繪製輪盤 ============ */
+/* 遊戲座標一律用 574×574；畫布本身是 1.5 倍（861）以避免放大後糊掉，
+   每次繪製前把 context 縮放回遊戲座標，其他程式碼都不用改。 */
+const GW = 574, GH = 574, HD = 1.5;
 const cv = $('wheel'), cx = cv.getContext('2d');
 const CX = 287, CY = 287, R_OUT = 272, R_IN = 150, R_BALL = 232;
 // 輪盤是「一直在轉」的：pocketAngleLocal 是格子在盤上的固定角度，
@@ -1651,7 +1674,8 @@ function stepWheel(now) {
 function draw() {
   if (S.pockets.length !== 16) return;     // 盤面還沒生成就別畫（第一幀防呆）
   const now = performance.now();
-  cx.clearRect(0, 0, cv.width, cv.height);
+  cx.setTransform(HD, 0, 0, HD, 0, 0);
+  cx.clearRect(0, 0, GW, GH);
   // 外圈：檯面木紋感 + 內陰影
   const og = cx.createRadialGradient(CX, CY - 60, 60, CX, CY, R_OUT + 20);
   og.addColorStop(0, '#1b2740'); og.addColorStop(1, '#080d18');
@@ -1846,30 +1870,42 @@ function renderSeat() {
   }
   box.innerHTML = '';
   S.plates.forEach(p => {
-    const done = p.types.every(t => isHit(p, t));
-    const res = p.result == null
-      ? (p.kind === 'shun' ? '<span class="sh-pay">老闆SP 抽選</span>' : `<span class="sh-pay">單盤 ${fmt(p.per)}</span>`)
-      : (p.result ? `<span class="sh-won">+${fmt(p.result)}</span>` : '<span class="sh-lost">未中</span>');
+    const done = p.kind !== 'shun' && p.types.every(t => isHit(p, t));
+    const pay = p.kind === 'shun' ? p.per : Math.min(p.per * p.count, T.econ.plateCap);
+    const res = p.result == null ? '' :
+      (p.result ? `<span class="sh-won">+${fmt(p.result)}</span>` : '<span class="sh-lost">未中</span>');
+
     const g = document.createElement('div');
     g.className = 'seat-grp';
-    g.innerHTML = `<div class="seat-head"><b>${KIND_NAME[p.kind]}</b>×${p.count} 盤　押 ${fmt(p.stake * p.count)}` +
-      `${p.free ? ' <span class="free">FREE</span>' : ''}${res}</div>`;
+
+    // 左：壽司牌（疊在盤子上的那組）＋ 盤型資訊
+    const col = document.createElement('div');
+    col.className = 'seat-col';
+    col.innerHTML =
+      (p.free ? '<div><span class="free-badge">FREE</span></div>' : '') +
+      '<div class="tiles">' + p.types.map(t =>
+        `<span class="tile ${isHit(p, t) ? 'on' : 'off'}" title="${SUSHI[t].name}">${iconTag(t, 26)}</span>`).join('') + '</div>' +
+      `<div class="seat-head"><b>${KIND_NAME[p.kind]}</b>×${p.count} 盤　押 ${fmt(p.stake * p.count)}${res}</div>`;
+
+    // 右：一疊碟子，正面印當選額
     const st = document.createElement('div');
-    st.className = 'stack';
-    const shown = Math.min(p.count, 12);   // 疊到 12 盤高，再多就維持這個高度
-    st.style.height = (28 + (shown - 1) * 4) + 'px';   // 盤子少就不要留一堆空白
+    st.className = 'stack' + (done ? ' done' : '');
+    const shown = Math.min(p.count, 14);            // 疊到 14 片高就不再長高
+    st.style.height = Math.max(28, 20 + (shown - 1) * 5) + 'px';
     for (let i = 0; i < shown; i++) {
       const d = document.createElement('div');
       d.className = 'pl ' + (PLATE_CLR[p.kind] || '');
-      d.style.bottom = (i * 4) + 'px';
-      d.style.left = (i * 2) + 'px';
+      d.style.bottom = (i * 5) + 'px';
+      d.style.left = d.style.right = (i * 0.9) + 'px';   // 越上面越窄＝看起來是一疊有厚度的碟子
       d.style.zIndex = String(i + 1);
-      if (i === shown - 1 && done) d.style.boxShadow = '0 0 14px rgba(110,224,164,.75), 0 2px 3px rgba(0,0,0,.45)';
-      d.innerHTML = p.types.map(t =>
-        `<span style="opacity:${isHit(p, t) ? 1 : .42}">${iconTag(t, 20)}</span>`).join('');
       st.appendChild(d);
     }
-    g.appendChild(st);
+    const pv = document.createElement('div');
+    pv.className = 'pay'; pv.style.zIndex = '99';
+    pv.textContent = fmt(pay);
+    st.appendChild(pv);
+
+    g.append(col, st);
     box.appendChild(g);
   });
 }
@@ -2089,6 +2125,18 @@ $('tuneExport').onclick = () => {
   console.log(s);
 };
 
+/* ============ 自適應縮放：固定 1600×900 橫版，等比縮放並置中 ============ */
+const BASE_W = 1600, BASE_H = 900;
+function fitScreen() {
+  const el = $('app');
+  const s = Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H);
+  const x = (window.innerWidth - BASE_W * s) / 2;
+  const y = (window.innerHeight - BASE_H * s) / 2;
+  el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+}
+window.addEventListener('resize', fitScreen);
+fitScreen();
+
 /* ============ 啟動 ============ */
 newBoard();
 startBetPhase();
@@ -2166,7 +2214,7 @@ window.__TEST__ = {
   hitProb, multOf, newBoard, addPlate, deal, nextRound,
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
   SP_ITEMS, STATE_NAME, stateMul, catchChance, betLeft, startBetPhase, endFree, stepWheel,
-  autoFreePick, HIST, missingOf, addPlates, renderSeat, renderMyBets,
+  autoFreePick, HIST, missingOf, addPlates, renderSeat, renderMyBets, fitScreen, GW, GH, HD,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
   forceSP(item) {
     const free = []; for (let i = 0; i < 16; i++) if (!S.balls.includes(i)) free.push(i);
