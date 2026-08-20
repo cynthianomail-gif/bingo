@@ -17,8 +17,9 @@
     --r:16px;
   }
   * { box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }   /* 單頁鎖定：整頁不捲動，捲動只發生在各區塊內 */
   body {
-    margin: 0; color: var(--txt); min-height: 100vh;
+    margin: 0; color: var(--txt);
     font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
     background:
       radial-gradient(1100px 560px at 12% -12%, #1e2c52 0%, transparent 62%),
@@ -32,18 +33,24 @@
     background-size: 36px 18px;
   }
   #app {
-    position: relative; z-index: 1;
-    display: grid; grid-template-columns: 292px minmax(610px, 1fr) 396px;
-    gap: 14px; padding: 14px; max-width: 1720px; align-items: start;
+    position: relative; z-index: 1; height: 100%;
+    display: grid; grid-template-columns: 268px minmax(440px, 1fr) 360px;
+    gap: 12px; padding: 12px; max-width: 1780px; margin: 0 auto; align-items: stretch;
   }
-  .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-  .col.left { position: sticky; top: 14px; }
-  @media (max-width: 1500px) { #app { grid-template-columns: 268px minmax(600px, 1fr); } .col.right { grid-column: 1 / -1; } }
-  @media (max-width: 1080px) { #app { grid-template-columns: 1fr; } .col.left { position: static; } }
+  .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; height: 100%; overflow: hidden; }
+  @media (max-width: 1340px) { #app { grid-template-columns: 232px minmax(380px, 1fr) 320px; gap: 9px; padding: 9px; } }
+  @media (max-height: 800px) { .card { padding: 10px 12px; } .col, #app { gap: 9px; } }
 
-  /* 舞台：輪盤與魚機共用同一塊區域 */
-  .stage { position: relative; width: 574px; max-width: 100%; margin: 0 auto; }
-  .stage canvas { width: 100%; height: auto; }
+  /* 可伸縮的卡片：內容自己捲，頁面不捲 */
+  .card.grow { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .card.grow > .scroll { flex: 1; min-height: 0; overflow-y: auto; }
+
+  /* 舞台：輪盤與魚機共用同一塊區域，高度吃剩下的空間 */
+  .stage {
+    position: relative; flex: 1; min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .stage canvas { height: 100%; width: auto; max-width: 100%; max-height: 100%; }
   #fish { display: none; }
   .stage.fishing #wheel { display: none; }
   .stage.fishing #fish { display: block; }
@@ -69,14 +76,14 @@
 
   .card {
     background: linear-gradient(180deg, var(--panel), var(--panel-3));
-    border: 1px solid var(--line); border-radius: var(--r); padding: 15px 17px;
+    border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px;
     box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.05);
   }
-  .card + .card { margin-top: 16px; }
+  .card.mid { flex: 1; padding: 8px; display: flex; flex-direction: column; min-height: 0; }   /* 舞台吃滿中欄高度 */
 
   /* ---- 招牌（暖木頭 + 金字） ---- */
   .masthead {
-    position: relative; overflow: hidden; margin: -15px -17px 14px; padding: 15px 18px 13px;
+    position: relative; overflow: hidden; margin: -12px -14px 10px; padding: 11px 14px 10px;
     border-radius: var(--r) var(--r) 0 0;
     background: linear-gradient(180deg, var(--wood-2), var(--wood-1) 58%, var(--wood-3));
     border-bottom: 1px solid #6b4a2d;
@@ -88,18 +95,18 @@
   }
   .mh-row { position: relative; display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
   .mh-title {
-    font-size: 27px; font-weight: 900; letter-spacing: 2px; line-height: 1;
+    font-size: 23px; font-weight: 900; letter-spacing: 2px; line-height: 1;
     background: linear-gradient(180deg, #fff6da, var(--gold) 55%, #a8761f);
     -webkit-background-clip: text; background-clip: text; color: transparent;
     filter: drop-shadow(0 2px 0 rgba(0,0,0,.45));
   }
   .mh-sub { font-size: 11.5px; color: #d6b98f; letter-spacing: .5px; padding-bottom: 2px; }
-  .mh-note { position: relative; margin-top: 8px; font-size: 11px; color: #b99b73; line-height: 1.7; }
+  .mh-note { position: relative; margin-top: 6px; font-size: 10.5px; color: #b99b73; line-height: 1.55; }
   h1 { margin: 0; }
   h2 {
-    display: flex; align-items: center; gap: 9px; margin: 0 0 12px; padding-bottom: 9px;
-    font-size: 14.5px; font-weight: 700; letter-spacing: .6px; color: #dde7ff;
-    border-bottom: 1px solid var(--line-soft);
+    display: flex; align-items: center; gap: 9px; margin: 0 0 9px; padding-bottom: 7px;
+    font-size: 13.5px; font-weight: 700; letter-spacing: .6px; color: #dde7ff;
+    border-bottom: 1px solid var(--line-soft); flex: 0 0 auto;
   }
   h2::before {
     content: ''; width: 4px; height: 17px; border-radius: 3px;
@@ -111,26 +118,28 @@
     border: 1px solid var(--line); box-shadow: inset 0 0 46px rgba(0,0,0,.65);
   }
 
-  /* ---- 狀態燈 ---- */
-  #hud { position: relative; display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 14px; }
+  /* ---- 狀態燈（只剩魚機控制條在用） ---- */
   .stat {
-    min-width: 96px; padding: 7px 13px; border-radius: 12px;
+    min-width: 84px; padding: 5px 11px; border-radius: 11px;
     background: linear-gradient(180deg, #0e1729, #080e1c);
     border: 1px solid var(--line); box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
     display: flex; flex-direction: column; gap: 1px;
   }
   .stat span { font-size: 10.5px; letter-spacing: 1px; color: var(--muted-2); }
   .stat b {
-    font-size: 21px; font-weight: 800; line-height: 1.15; color: var(--gold-2);
+    font-size: 18px; font-weight: 800; line-height: 1.15; color: var(--gold-2);
     font-variant-numeric: tabular-nums;
   }
   .stat.win b { color: var(--jade-2); }
   .stat.now b { color: var(--sky); }
+  #cdStat b { color: #ff9ed2; }
+  #cdStat.urge b { color: #ff5c5c; animation: cdBlink .6s steps(2, end) infinite; }
+  @keyframes cdBlink { 50% { opacity: .28; } }
 
   /* ---- 壽司 chip ---- */
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
   .chip {
-    display: flex; align-items: center; gap: 7px; padding: 6px 12px 6px 7px; border-radius: 999px;
+    display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px; border-radius: 999px;
     border: 1px solid var(--line); background: linear-gradient(180deg, #1c2742, #121a2e);
     cursor: pointer; font-size: 13px; user-select: none;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
@@ -146,16 +155,16 @@
   .chip .mul { font-size: 11.5px; font-weight: 800; color: #ffa9d0; font-variant-numeric: tabular-nums; }
 
   /* ---- 盤型分頁 ---- */
-  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 14px 0 12px; }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 0 0 9px; }
   .tab {
-    position: relative; padding: 10px 8px; text-align: center; border-radius: 13px; cursor: pointer;
-    font-size: 14.5px; font-weight: 800; color: #d3ddf3;
+    position: relative; padding: 7px 6px; text-align: center; border-radius: 11px; cursor: pointer;
+    font-size: 13.5px; font-weight: 800; color: #d3ddf3;
     background: linear-gradient(180deg, #1a2440, #101728); border: 1px solid var(--line);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
     transition: transform .1s, border-color .15s;
   }
   .tab:hover { transform: translateY(-1px); }
-  .tab i { display: block; font-size: 11px; font-weight: 400; font-style: normal; color: var(--muted); margin-top: 3px; }
+  .tab i { display: block; font-size: 10.5px; font-weight: 400; font-style: normal; color: var(--muted); margin-top: 2px; }
   .tab.active { border-color: var(--gold); color: #fff; background: linear-gradient(180deg, #2c3757, #161e35); }
   .tab.active::after {
     content: ''; position: absolute; left: 20%; right: 20%; bottom: -1px; height: 3px; border-radius: 3px;
@@ -166,8 +175,8 @@
   /* ---- 按鈕 ---- */
   .combo { display: flex; flex-wrap: wrap; gap: 8px; }
   .btn, .combo button {
-    appearance: none; font: inherit; font-size: 13px; color: var(--txt); cursor: pointer;
-    padding: 8px 14px; border-radius: 11px; border: 1px solid var(--line);
+    appearance: none; font: inherit; font-size: 12.5px; color: var(--txt); cursor: pointer;
+    padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line);
     background: linear-gradient(180deg, #23314f, #161f36);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 0 rgba(0,0,0,.4);
     transition: transform .07s, border-color .15s, color .15s;
@@ -181,15 +190,16 @@
   }
   .btn.on { border-color: var(--gold); color: var(--gold-2); background: linear-gradient(180deg, #4b3714, #2a1f0a); }
   .btn:disabled { opacity: .38; cursor: not-allowed; transform: none; }
-  .row { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; margin-top: 11px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 9px; }
 
   /* ---- 盤清單 ---- */
-  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
   th {
-    padding: 8px; text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: 1px;
+    position: sticky; top: 0; z-index: 1; background: #131b30;
+    padding: 6px; text-align: left; font-size: 10px; font-weight: 700; letter-spacing: 1px;
     color: var(--muted-2); border-bottom: 1px solid var(--line);
   }
-  td { padding: 9px 8px; border-bottom: 1px solid rgba(255,255,255,.055); vertical-align: middle; }
+  td { padding: 6px; border-bottom: 1px solid rgba(255,255,255,.055); vertical-align: middle; }
   td:nth-child(n+3) { font-variant-numeric: tabular-nums; }
   tbody tr:nth-child(odd) { background: rgba(255,255,255,.022); }
   tbody tr:hover { background: rgba(127,199,245,.07); }
@@ -198,25 +208,36 @@
   .lost { color: var(--muted-2); }
 
   /* ---- 紀錄 ---- */
-  #log { height: 176px; overflow-y: auto; font-size: 12px; line-height: 1.6; padding-right: 4px; }
-  #log div { padding: 4px 9px; margin-bottom: 3px; border-left: 2px solid transparent; border-radius: 0 8px 8px 0; }
-  .lg-w { color: #a6f3c6; border-left-color: var(--jade); background: rgba(55,165,106,.1); }
-  .lg-i { color: #d3e2fb; border-left-color: #37507d; }
-  .lg-b { color: #ffdf9e; border-left-color: var(--gold); background: rgba(233,181,63,.1); }
-  .lg-d { color: var(--muted-2); }
-  #log::-webkit-scrollbar { width: 9px; }
-  #log::-webkit-scrollbar-track { background: rgba(255,255,255,.03); border-radius: 9px; }
-  #log::-webkit-scrollbar-thumb { background: #2f3f66; border-radius: 9px; }
-  #log::-webkit-scrollbar-thumb:hover { background: #3d5182; }
+  /* ---- 開球紀錄：一局一列（局號＋5 顆球的壽司＋本局贏分） ---- */
+  #log { font-size: 11.5px; padding-right: 4px; }
+  .hrow {
+    display: flex; align-items: center; gap: 7px; padding: 5px 7px; margin-bottom: 3px;
+    border-radius: 9px; border: 1px solid transparent; background: rgba(255,255,255,.03);
+  }
+  .hrow.cur { border-color: var(--sky); background: rgba(127,199,245,.09); }
+  .hrow.win { border-color: var(--jade); background: rgba(55,165,106,.12); }
+  .hrow .hr-no { flex: 0 0 34px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
+  .hrow .hr-balls { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; }
+  .hrow .hr-balls img { display: block; border-radius: 5px; background: rgba(255,255,255,.05); }
+  .hrow .hr-sp {
+    width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center;
+    font-size: 12px; background: linear-gradient(180deg, #7c3aed, #4c1d95);
+  }
+  .hrow .hr-win { font-weight: 800; color: var(--jade-2); font-variant-numeric: tabular-nums; }
+  .hrow .hr-none { color: var(--muted-2); }
+  .scroll::-webkit-scrollbar { width: 8px; }
+  .scroll::-webkit-scrollbar-track { background: rgba(255,255,255,.03); border-radius: 9px; }
+  .scroll::-webkit-scrollbar-thumb { background: #2f3f66; border-radius: 9px; }
+  .scroll::-webkit-scrollbar-thumb:hover { background: #3d5182; }
 
   /* ---- 事件面板（FREE / 老闆SP / 漁） ---- */
   .evt {
-    display: none; margin-top: 12px; padding: 13px 15px; border-radius: 14px;
+    display: none; flex: 0 0 auto; margin-top: 9px; padding: 9px 11px; border-radius: 13px;
     border: 1px solid var(--plum);
     background: linear-gradient(180deg, rgba(168,85,247,.16), rgba(88,28,135,.22));
     box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
   }
-  .evt h3 { margin: 0 0 7px; font-size: 15px; font-weight: 800; letter-spacing: .5px; color: #f0c8ff; }
+  .evt h3 { margin: 0 0 5px; font-size: 14px; font-weight: 800; letter-spacing: .5px; color: #f0c8ff; }
   .evt.gold { border-color: var(--gold); background: linear-gradient(180deg, rgba(233,181,63,.15), rgba(120,80,10,.2)); }
   .evt.gold h3 { color: var(--gold-2); }
   .evt.sea { border-color: #2b9fd8; background: linear-gradient(180deg, rgba(43,159,216,.15), rgba(8,48,74,.3)); }
@@ -251,7 +272,6 @@
     border-left: 1px solid var(--line); box-shadow: -16px 0 40px rgba(0,0,0,.5);
   }
   #tune.open { transform: none; }
-  #tuneBtn { position: fixed; right: 12px; top: 12px; z-index: 61; }
   .tune-tab {
     padding: 6px 9px; font-size: 12px; cursor: pointer; border-radius: 9px;
     background: #0e1729; border: 1px solid var(--line); color: #c3d0ea;
@@ -269,12 +289,13 @@
     background: #0b1120; border: 1px solid var(--line); color: var(--txt);
     font-variant-numeric: tabular-nums;
   }
-  .hint { font-size: 11px; color: var(--muted-2); line-height: 1.75; margin: 8px 0; }
+  .hint { font-size: 10.5px; color: var(--muted-2); line-height: 1.6; margin: 6px 0; }
+  .kv { padding: 5px 0; }
+  .sub { margin-bottom: 8px; }
 </style>
 </head>
 <body>
 
-<button class="btn" id="tuneBtn">⚙️ 調參</button>
 <div id="toast"><div class="toast-in" id="toastIn"></div></div>
 
 <div id="app">
@@ -283,25 +304,7 @@
     <div class="card">
       <div class="masthead">
         <div class="mh-row"><h1 class="mh-title">迴轉壽司賓果</h1></div>
-        <div class="mh-note">復刻日本 8 人小型機台・第 3 代<br>16 格輪盤（15 格壽司 ＋ 1 格老闆SP）</div>
       </div>
-      <div class="kv"><span>局數</span><b id="roundNo">1</b></div>
-      <div class="kv"><span>本局盤面</span><b id="kindCount" style="font-size:13px">—</b></div>
-    </div>
-
-    <div class="card">
-      <h2>中獎紀錄</h2>
-      <div id="log"></div>
-    </div>
-
-    <div class="card">
-      <h2>累計</h2>
-      <div class="kv"><span>總投入</span><b id="totalBet">0</b></div>
-      <div class="kv"><span>總贏分</span><b class="g" id="totalWin">0</b></div>
-      <div class="kv"><span>回收率</span><b id="rtpNow">—</b></div>
-    </div>
-
-    <div class="card">
       <div class="player">
         <div class="avatar">🐷</div>
         <div>
@@ -309,19 +312,24 @@
           <div class="pc">⭐ <span id="balance">0</span> <i>枚</i></div>
         </div>
       </div>
+      <div class="kv"><span>局數 / 盤面</span><b id="roundNo">1</b></div>
+      <div class="kv" id="cdStat"><span>押注倒數</span><b id="betCd">30</b></div>
+      <div class="kv"><span>狀態 / 球數</span><b id="phaseName" style="font-size:13px">押注中</b></div>
+      <div class="kv"><span>本局 押注 / 贏分</span><b id="roundBW">0 / 0</b></div>
+      <div class="kv"><span>總投入 / 總贏分</span><b id="totalBW">0 / 0</b></div>
+      <div class="kv"><span>回收率</span><b class="g" id="rtpNow">—</b></div>
+      <div class="kv"><span>內部狀態</span><b id="stateName" style="font-size:13px">普通</b></div>
+    </div>
+
+    <div class="card grow">
+      <h2>開球紀錄</h2>
+      <div id="log" class="scroll"></div>
     </div>
   </div>
 
   <!-- ===== 中欄：舞台（輪盤／魚機共用同一塊） ===== -->
   <div class="col">
-    <div class="card">
-      <div id="hud">
-        <div class="stat now"><span>球數</span><b id="ballCount">0 / 5</b></div>
-        <div class="stat"><span>本局押注</span><b id="betSum">0</b></div>
-        <div class="stat win"><span>本局贏分</span><b id="winSum">0</b></div>
-        <div class="stat"><span>狀態</span><b id="phaseName" style="font-size:15px">押注中</b></div>
-      </div>
-
+    <div class="card mid">
       <div class="stage" id="stage">
         <canvas id="wheel" width="574" height="574"></canvas>
         <canvas id="fish" width="574" height="574"></canvas>
@@ -331,23 +339,24 @@
       <div id="fishBar" class="evt sea">
         <div class="row" style="margin:0">
           <h3 id="fishTitle" style="margin:0">🎣 漁</h3>
-          <div class="stat" style="min-width:76px"><span>剩餘秒數</span><b id="fishTime">30</b></div>
-          <button class="btn" id="wNet">🕸️ 網（<span id="cNet">10</span> 枚）</button>
-          <button class="btn on" id="wGrab">🤏 單抓（<span id="cGrab">2</span> 枚）</button>
-          <button class="btn" id="fishEnd">結束漁</button>
+          <div class="stat" style="min-width:62px"><span>秒數</span><b id="fishTime">30</b></div>
+          <div class="stat" style="min-width:76px"><span>本次收支</span><b id="fishNet">0</b></div>
+          <button class="btn" id="wNet">🕸️ 網（<span id="cNet">10</span>）</button>
+          <button class="btn on" id="wGrab">🤏 單抓（<span id="cGrab">2</span>）</button>
+          <button class="btn" id="fishEnd">結束</button>
         </div>
-        <div class="hint" id="fishHint" style="margin-bottom:0">選武器後點畫面撈魚。撈到自己盤上還沒完成的壽司 → 補齊即 BINGO；撈到沒押的壽司 → 得該壽司的贏分。</div>
+        <div class="hint" id="fishHint" style="margin-bottom:0"></div>
       </div>
 
       <div id="freeBox" class="evt">
-        <h3>✨ FREE CHOICE — 可指定 1 種未命中的壽司視為命中</h3>
+        <h3>✨ FREE CHOICE — 指定 1 種未命中的壽司視為命中 <span class="tag" id="fcCd">10.0s</span></h3>
         <div id="fcList"></div>
         <div class="row"><button class="btn pri" id="fcDone">繼續抽剩下 2 球 ▶</button></div>
       </div>
 
       <div id="spBox" class="evt gold">
         <h3>🎴 老闆SP — 追加第 6 顆 EX 球</h3>
-        <div class="hint" id="spHint" style="margin:0">沒有球的格子重新配置成特別輪盤，EX 球決定獎項。</div>
+        <div class="hint" id="spHint" style="margin:0"></div>
       </div>
     </div>
   </div>
@@ -355,39 +364,35 @@
   <!-- ===== 右欄：押注 ===== -->
   <div class="col right">
     <div class="card">
-      <h2>押注</h2>
       <div class="tabs">
-        <div class="tab active" data-kind="maru">圓盤<i>押 3 枚／選 1~2 種</i></div>
-        <div class="tab" data-kind="geta">三貫<i>押 5 枚／選 3 種</i></div>
-        <div class="tab" data-kind="funa">五貫<i>押 10 枚／選 5 種</i></div>
+        <div class="tab active" data-kind="maru">圓盤<i>3 枚／1~2 種</i></div>
+        <div class="tab" data-kind="geta">三貫<i>5 枚／3 種</i></div>
+        <div class="tab" data-kind="funa">五貫<i>10 枚／5 種</i></div>
       </div>
-      <div class="sub" id="boardInfo"></div>
       <div class="chips" id="chips"></div>
       <div id="shunArea"></div>
       <div id="betArea"></div>
       <div class="row">
-        <button class="btn pri" id="dealBtn">🎱 開始抽球</button>
         <button class="btn" id="clearBtn">清除押注</button>
-        <button class="btn" id="nextBtn" style="display:none">下一局 ▶</button>
       </div>
-      <div class="hint" id="stateHint" style="margin-bottom:0"></div>
     </div>
 
-    <div class="card">
+    <div class="card grow">
       <h2>已押注的盤</h2>
-      <table id="plateTable"><thead><tr><th>盤型</th><th>組合</th><th>盤數</th><th>押注</th><th>單盤賠付</th><th>結果</th></tr></thead><tbody></tbody></table>
-      <div class="hint" style="margin-bottom:0">同組合最多 30 盤；單一盤累積當選額達上限（<span id="capHint">2500</span> 枚）即不能再加押。</div>
+      <div class="scroll">
+        <table id="plateTable"><thead><tr><th>盤型</th><th>組合</th><th>盤</th><th>押</th><th>賠付</th><th>結果</th></tr></thead><tbody></tbody></table>
+      </div>
     </div>
 
     <div class="card">
-      <h2>強開（測試用）</h2>
       <div class="force">
         <button class="btn" data-force="sp">🎴 老闆SP</button>
         <button class="btn" data-force="ryo">🎣 漁</button>
         <button class="btn" data-force="dairyo">🌊 大漁</button>
-        <button class="btn" data-force="shunryo">✨ 特殊壽司漁</button>
+        <button class="btn" data-force="shunryo">✨ 特殊漁</button>
+        <button class="btn" id="tuneBtn">⚙️ 調參</button>
       </div>
-      <div class="hint" style="margin-bottom:0">會先把 5 顆球擺好、結算本局押注，再直接跳到該情境。</div>
+      <div class="hint" id="stateHint" style="margin:6px 0 0"></div>
     </div>
   </div>
 </div>
@@ -411,7 +416,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'A1';
+const APP_BUILD = 'A3';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -432,14 +437,18 @@ const SP_POCKET = -1;   // 老闆SP 格
 
 /* ============ 可調參數 ============ */
 const TUNE_KEY = 'sushi_bingo_tuning';
-const TUNE_VERSION = 1;
+const TUNE_VERSION = 3;
 
 const DEF = {
   rhythm: {
-    ballTravel: 1100,   // 一顆球從發射到落格的時間 (ms)
-    ballGap:    420,    // 球與球之間的間隔 (ms)
+    ballTravel: 2600,   // 一顆球從發射到落格的時間 (ms)
+    ballGap:    520,    // 球與球之間的間隔 (ms)
     settlePause: 700,   // 結算前的停頓 (ms)
-    spinTurns:  2.5,    // 球在盤上繞幾圈才落定
+    spinTurns:  1.25,   // 球在盤上繞幾圈才落定（圈數少＋時間長＝慢慢滾）
+    betSeconds:  30,    // 押注時間（秒）；歸零自動開球
+    freeSeconds: 10,    // FREE CHOICE 的選擇時間（秒）；歸零自動繼續
+    roundGap:   3.5,    // 結算後幾秒自動進下一局
+    wheelSpin:    6,    // 輪盤持續自轉的速度（度／秒）
   },
   prob: {
     rtp:         0.92,  // 賠付係數（倍率 = rtp / 命中機率）
@@ -476,14 +485,25 @@ const DEF = {
     fishMax:    30,  // 一般魚贏分上限
     schoolMin:  23,  // 魚群單隻贏分下限（[攻略]）
     schoolMax:  50,
+    // ── 命中不保證：攻略把「漁で全く取れない（終始マイナス）」列為壞台特徵，
+    //    代表發射要付費、命中由內部狀態控制，失手是純損失。
+    catchRate:     0.70,  // 一般魚的捕獲率
+    catchRateGlow: 0.92,  // 發光魚群的捕獲率（攻略：魚群比一般魚容易獲得）
+    stateMode:     1,     // 內部狀態 0=回收期 1=普通 2=開放期
+    openMul:       1.15,  // 開放期的捕獲率乘數
+    recMul:        0.70,  // 回收期的捕獲率乘數
   },
 };
 const TUNE_META = {
   rhythm: [
-    ['ballTravel', '落球時間 ms', 300, 2500, 50],
+    ['ballTravel', '落球時間 ms', 300, 6000, 100],
     ['ballGap', '球間隔 ms', 0, 1500, 50],
     ['settlePause', '結算停頓 ms', 0, 2000, 50],
-    ['spinTurns', '繞盤圈數', 0.5, 6, 0.5],
+    ['spinTurns', '繞盤圈數', 0.25, 6, 0.25],
+    ['betSeconds', '押注秒數', 5, 120, 5],
+    ['freeSeconds', 'FREE 選擇秒數', 3, 30, 1],
+    ['roundGap', '結算→下局 秒', 0.5, 15, 0.5],
+    ['wheelSpin', '輪盤自轉 度/秒', 0, 60, 1],
   ],
   prob: [
     ['rtp', '賠付係數 RTP', 0.5, 1.2, 0.01],
@@ -523,6 +543,11 @@ const TUNE_META = {
     ['fishMax', '一般魚上限', 5, 150, 1],
     ['schoolMin', '魚群下限', 5, 100, 1],
     ['schoolMax', '魚群上限', 10, 300, 5],
+    ['catchRate', '捕獲率 一般魚', 0.05, 1, 0.01],
+    ['catchRateGlow', '捕獲率 發光魚群', 0.05, 1, 0.01],
+    ['stateMode', '內部狀態', 0, 2, 1, ['回收期', '普通', '開放期']],
+    ['openMul', '開放期乘數', 1, 2, 0.05],
+    ['recMul', '回收期乘數', 0.2, 1, 0.05],
   ],
 };
 let T = JSON.parse(JSON.stringify(DEF));
@@ -559,6 +584,10 @@ const S = {
   spFree: null,          // 特別輪盤可用的格子
   exBall: null,          // 第 6 顆 EX 球
   pendingShun: null,     // 漁中撈到的特殊壽司魚 → 下一局可押
+  wheelRot: 0,           // 輪盤自轉角度（弧度），持續累加
+  rotT: 0,               // 上一次推進自轉的時間戳
+  betEndAt: 0,           // 押注截止時間（performance.now()）
+  autoT: null,           // 「結算 → 下一局」的計時器
 };
 
 /* ============ 工具 ============ */
@@ -566,11 +595,22 @@ const $ = id => document.getElementById(id);
 const rnd = n => Math.floor(Math.random() * n);
 const pick = a => a[rnd(a.length)];
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-function log(msg, cls) {
-  const d = document.createElement('div');
-  d.className = 'lg-' + (cls || 'i');
-  d.textContent = msg;
-  $('log').prepend(d);
+/* 左欄只放「開球紀錄」，其餘訊息不進畫面（要看細節開 console） */
+function log(msg) { console.log(msg); }
+
+/* ============ 開球紀錄（一局一列） ============ */
+const HIST = [];                      // 新的在前
+function histNew(round) { HIST.unshift({ round, balls: [], win: 0, done: false }); if (HIST.length > 60) HIST.pop(); renderHist(); }
+function histBall(t) { if (HIST[0]) { HIST[0].balls.push(t); renderHist(); } }
+function histDone(win) { if (HIST[0]) { HIST[0].win = win; HIST[0].done = true; renderHist(); } }
+function renderHist() {
+  const box = $('log');
+  box.innerHTML = HIST.map(h => {
+    const balls = h.balls.map(t => t === SP_POCKET ? '<span class="hr-sp">🎴</span>' : iconTag(t, 22)).join('');
+    const res = !h.done ? '' : (h.win ? `<span class="hr-win">+${fmt(h.win)}</span>` : '<span class="hr-none">—</span>');
+    return `<div class="hrow${h.done ? (h.win ? ' win' : '') : ' cur'}">` +
+      `<span class="hr-no">${h.round}局</span><span class="hr-balls">${balls}</span>${res}</div>`;
+  }).join('');
 }
 function comb(n, k) {
   if (k < 0 || k > n) return 0;
@@ -690,15 +730,41 @@ function clearBets() {
   refreshAll(); log('已清除本局押注（選取的壽司保留）', 'd');
 }
 
+/* ============ 局循環：押注 30 秒 → 自動開球 → 結算 → 自動下一局 ============
+   機台是不會停的：輪盤一直轉，押注時間到就開，沒押注就當作這局空過。 */
+function clearAuto() { if (S.autoT) { clearTimeout(S.autoT); S.autoT = null; } }
+
+function startBetPhase() {
+  clearAuto();
+  S.phase = 'BET';
+  S.betEndAt = performance.now() + T.rhythm.betSeconds * 1000;
+}
+
+function scheduleNext() {
+  clearAuto();
+  S.nextAt = performance.now() + T.rhythm.roundGap * 1000;
+  S.autoT = setTimeout(() => {
+    S.autoT = null;
+    if (S.phase === 'SETTLE') nextRound();
+  }, T.rhythm.roundGap * 1000);
+}
+
+function betLeft() {
+  return S.phase === 'BET' ? Math.max(0, (S.betEndAt - performance.now()) / 1000) : 0;
+}
+
 /* ============ 抽球 ============ */
 function deal() {
   if (S.phase !== 'BET') return;
-  if (!S.plates.length) { log('先押注再抽球', 'b'); return; }
+  clearAuto();
   S.phase = 'DRAW';
   S.balls = []; S.hitTypes = new Set(); S.spHit = false;
   // 5 顆球落在互不相同的 5 格
   S.drawOrder = shuffle([...Array(16).keys()]).slice(0, 5);
-  log(`第 ${S.round} 局開始抽球（押注 ${S.betSum} 枚）`, 'i');
+  histNew(S.round);
+  log(S.plates.length
+    ? `第 ${S.round} 局開始抽球（押注 ${S.betSum} 枚）`
+    : `第 ${S.round} 局開球 — 本局未押注，空過`, S.plates.length ? 'i' : 'd');
   refreshAll();
   dropBall(0);
 }
@@ -708,7 +774,7 @@ function dropBall(i) {
   // （少了這道，連點「繼續」會開出第二條抽球鏈 → 抽出 7 顆球且結算跑兩次）
   if (S.phase !== 'DRAW' || S.balls.length !== i || S.ballAnim) return;
   const idx = S.drawOrder[i];
-  const targetAngle = pocketAngle(idx);
+  const targetAngle = pocketAngleLocal(idx);
   S.ballAnim = { t0: performance.now(), idx, from: targetAngle + Math.PI * 2 * T.rhythm.spinTurns, to: targetAngle, i };
   const step = now => {
     const k = Math.min(1, (now - S.ballAnim.t0) / T.rhythm.ballTravel);
@@ -719,6 +785,7 @@ function dropBall(i) {
     S.ballAnim = null;
     S.balls.push(idx);
     const t = S.pockets[idx];
+    histBall(t);
     if (t === SP_POCKET) { S.spHit = true; log(`第 ${i + 1} 球 → 🎴 老闆SP！`, 'b'); }
     else { S.hitTypes.add(t); log(`第 ${i + 1} 球 → ${SUSHI[t].emoji} ${SUSHI[t].name}`, 'i'); }
     refreshAll();
@@ -731,7 +798,10 @@ function afterBall(i) {
   if (i === 2) {
     // 前 3 球結束 → FREE CHOICE
     const cands = S.plates.filter(p => p.free && !p.freeUsed && missingOf(p).length);
-    if (cands.length) { S.phase = 'FREE'; buildFreeBox(cands); refreshAll(); return; }
+    if (cands.length) {
+      S.phase = 'FREE'; S.freeAt = performance.now() + T.rhythm.freeSeconds * 1000;
+      buildFreeBox(cands); refreshAll(); return;
+    }
     dropBall(3); return;
   }
   if (i === 4) { setTimeout(settle, T.rhythm.settlePause); return; }
@@ -763,12 +833,26 @@ function buildFreeBox(cands) {
   box.style.display = 'block';
 }
 
-$('fcDone').onclick = () => {
-  if (S.phase !== 'FREE') return;          // 防連點
+/* 時間到還沒選 → 自動幫玩家選：挑「格數最少」那種，因為它最難靠剩下的球自己開出來 */
+function autoFreePick() {
+  S.plates.forEach(p => {
+    if (!p.free || p.freeUsed || p.result) return;
+    const miss = missingOf(p);
+    if (!miss.length) return;
+    const t = miss.slice().sort((a, b) => S.counts[a] - S.counts[b])[0];
+    p.freeUsed = t;
+    log(`✨ FREE CHOICE（自動）：${SUSHI[t].name} 視為命中`);
+  });
+}
+
+function endFree() {
+  if (S.phase !== 'FREE') return;          // 防連點／防重入
+  autoFreePick();
   $('freeBox').style.display = 'none';
   S.phase = 'DRAW'; refreshAll();
   dropBall(3);
-};
+}
+$('fcDone').onclick = endFree;
 
 /* ============ 結算 ============ */
 function isHit(p, t) { return S.hitTypes.has(t) || p.freeUsed === t; }
@@ -860,9 +944,10 @@ function settle() {
     win += payIfComplete(p);
     if (!p.result) p.result = 0;
   });
-  if (!win) log('5 球結算：沒有中獎', 'd');
+  if (!win && S.plates.length) log('5 球結算：沒有中獎', 'd');
   refreshAll();
   if (S.spHit) setTimeout(startSP, T.rhythm.settlePause);
+  else { histDone(S.winSum); scheduleNext(); }
 }
 
 function finishRound() {
@@ -872,7 +957,9 @@ function finishRound() {
   $('fishBar').style.display = 'none';
   $('stage').classList.remove('fishing');   // 轉盤回來
   log(`本局結束：贏分 ${S.winSum} 枚（押注 ${S.betSum}）`, S.winSum > S.betSum ? 'w' : 'd');
+  histDone(S.winSum);
   refreshAll();
+  scheduleNext();
 }
 
 function nextRound() {
@@ -880,8 +967,9 @@ function nextRound() {
   // 特殊壽司盤只在「取得的下一局」可押，過期就清掉
   if (S.pendingShun && S.round >= S.pendingShun.forRound) S.pendingShun = null;
   S.round++; S.plates = []; S.selected = []; S.betSum = 0; S.winSum = 0;
-  S.balls = []; S.hitTypes = new Set(); S.spHit = false; S.phase = 'BET';
+  S.balls = []; S.hitTypes = new Set(); S.spHit = false;
   S.spItems = null; S.spFree = null; S.exBall = null;
+  startBetPhase();
   newBoard(); refreshAll();
   log(`── 第 ${S.round} 局 ──`, 'd');
 }
@@ -915,9 +1003,8 @@ function startSP() {
   FX.spReveal = performance.now();     // 特別輪盤逐格翻開的轉場
   toast('老闆SP', '追加第 6 顆 EX 球');
   $('spBox').style.display = 'block';
-  $('spHint').innerHTML = `沒有球的 <b>${free.length}</b> 格重新配置成特別輪盤：` +
-    free.map(i => SP_ITEMS[S.spItems[i]].emoji + SP_ITEMS[S.spItems[i]].label).join('　') +
-    '<br><span style="color:#94a3b8">（本版不做印章系統，布丁與 JP 改為固定獎）</span>';
+  $('spHint').innerHTML = `沒有球的 <b>${free.length}</b> 格重配成特別輪盤：` +
+    free.map(i => SP_ITEMS[S.spItems[i]].emoji + SP_ITEMS[S.spItems[i]].label).join('　');
   log('🎴 老闆SP！追加第 6 顆 EX 球', 'b');
   refreshAll();
   setTimeout(dropEX, 450);
@@ -926,7 +1013,7 @@ function startSP() {
 function dropEX() {
   if (S.phase !== 'SP' || S.exBall) return;
   const idx = pick(S.spFree);
-  const a = pocketAngle(idx);
+  const a = pocketAngleLocal(idx);
   S.exBall = { idx, from: a + Math.PI * 2 * T.rhythm.spinTurns, to: a, t0: performance.now(), cur: null };
   const step = now => {
     const k = Math.min(1, (now - S.exBall.t0) / (T.rhythm.ballTravel * 1.4));
@@ -965,14 +1052,30 @@ function resolveSP(idx) {
 }
 
 /* ============ 漁（撈魚小遊戲） ============ */
-const FISH = { list: [], mode: 'ryo', weapon: 'grab', endAt: 0, raf: null, lastSpawn: 0, shunSpawned: false, ripple: null };
+const FISH = { list: [], mode: 'ryo', weapon: 'grab', endAt: 0, raf: null, lastSpawn: 0, shunSpawned: false, ripple: null, spent: 0, gained: 0 };
 const fcv = $('fish'), fx = fcv.getContext('2d');
+
+/* 命中不保證：發射要付費，撈得到與否由捕獲率 × 內部狀態決定，失手是純損失。
+   （攻略把「漁完全撈不到、整場負的」列為壞台特徵，好台則是「漁很好撈」） */
+const STATE_NAME = ['回收期', '普通', '開放期'];
+function stateMul() {
+  return T.fish.stateMode === 2 ? T.fish.openMul : T.fish.stateMode === 0 ? T.fish.recMul : 1;
+}
+function catchChance(f) {
+  const base = f.school ? T.fish.catchRateGlow : T.fish.catchRate;
+  return Math.max(0, Math.min(1, base * stateMul()));
+}
+function spook(f, now) {          // 失手：魚受驚彈開
+  f.spookT = now;
+  f.vx *= 3.1; f.amp = Math.max(2, f.amp * 0.35); f.spooked = true;
+}
 
 function startFishing(mode) {
   S.phase = 'FISH';
   FISH.mode = mode; FISH.list = []; FISH.weapon = 'grab';
   FISH.endAt = performance.now() + T.fish.duration * 1000;
   FISH.lastSpawn = 0; FISH.shunSpawned = false; FISH.ripple = null;
+  FISH.spent = 0; FISH.gained = 0;
   // 魚機直接接管轉盤那一塊，不另開面板
   $('stage').classList.add('fishing');
   $('fishBar').style.display = 'block';
@@ -980,7 +1083,11 @@ function startFishing(mode) {
   $('fishTitle').textContent = mode === 'dairyo' ? '🌊 大漁 — 魚群密度提升'
     : mode === 'shunryo' ? '✨ 特殊壽司漁 — 會出現特殊壽司魚' : '🎣 漁';
   $('cNet').textContent = T.fish.netCost; $('cGrab').textContent = T.fish.grabCost;
-  log(`進入 ${$('fishTitle').textContent}（${T.fish.duration} 秒）`, 'b');
+  $('fishHint').innerHTML =
+    `發射就扣錢，<b>瞄到也不一定撈得到</b>：一般魚 <b>${Math.round(T.fish.catchRate * stateMul() * 100)}%</b>／` +
+    `發光魚群 <b>${Math.round(T.fish.catchRateGlow * stateMul() * 100)}%</b>（內部狀態：${STATE_NAME[T.fish.stateMode]} ×${stateMul().toFixed(2)}）。` +
+    `　🔴 圈＝盤上還缺的種類，撈到就補齊 BINGO；其他魚 → 得該魚的值。`;
+  log(`進入 ${$('fishTitle').textContent}（${T.fish.duration} 秒・${STATE_NAME[T.fish.stateMode]}）`, 'b');
   toast($('fishTitle').textContent.replace(/ —.*/, ''), '點畫面撈魚');
   refreshAll();
   FISH.raf = requestAnimationFrame(fishLoop);
@@ -1036,6 +1143,10 @@ function fishLoop(now) {
   if (S.phase !== 'FISH') return;
   const left = Math.max(0, FISH.endAt - now);
   $('fishTime').textContent = (left / 1000).toFixed(1);
+  const net = FISH.gained - FISH.spent;
+  const el = $('fishNet');
+  el.textContent = (net > 0 ? '+' : '') + fmt(net);
+  el.style.color = net >= 0 ? 'var(--jade-2)' : '#ff8b8b';
   const rate = T.fish.spawnMs / (FISH.mode === 'dairyo' ? T.fish.dairyoMul : 1);
   // 有上限：擠滿了就先不生成，畫面才看得清
   if (now - FISH.lastSpawn > rate && FISH.list.length < T.fish.maxFish) { FISH.lastSpawn = now; spawnFish(now); }
@@ -1115,6 +1226,19 @@ function drawFish(now) {
       fx.restore();
     }
     drawFishShape(fx, f.x, y, f.r, f.vx >= 0 ? 1 : -1, f.type, now, { gold: f.shun });
+    // 失手：魚受驚 → 白光一閃＋冒出「跑掉了」
+    if (f.spookT && now - f.spookT < 520) {
+      const k = 1 - (now - f.spookT) / 520;
+      fx.save();
+      fx.globalAlpha = k * 0.85;
+      fx.fillStyle = '#fff';
+      fx.beginPath(); fx.arc(f.x, y, f.r * 1.5, 0, 6.28); fx.fill();
+      fx.globalAlpha = k;
+      fx.fillStyle = '#fca5a5'; fx.font = 'bold 12px "Noto Sans TC", sans-serif';
+      fx.textAlign = 'center'; fx.textBaseline = 'middle';
+      fx.fillText('跑掉了！', f.x, y - f.r * 2 - (1 - k) * 14);
+      fx.restore();
+    }
     // 價值標籤
     const txt = f.shun ? '旬 ' + f.tier : '+' + f.value;
     fx.font = 'bold 11px "Noto Sans TC", sans-serif';
@@ -1152,11 +1276,17 @@ function drawFish(now) {
   fx.fillStyle = 'rgba(8,13,24,.55)'; fx.fillRect(0, H - 24, W, 24);
   fx.fillStyle = '#cbd5e1'; fx.font = '12px "Noto Sans TC", sans-serif'; fx.textAlign = 'left';
   fx.textBaseline = 'middle';
-  fx.fillText(`武器：${FISH.weapon === 'net' ? '🕸️ 網（範圍）' : '🤏 單抓（單體）'}　　🔴 虛線圈＝你盤上還缺的壽司　　✨ 發光＝高價魚群`, 10, H - 12);
+  fx.fillText(`${FISH.weapon === 'net' ? '🕸️ 網' : '🤏 單抓'}　捕獲率 ${Math.round(T.fish.catchRate * stateMul() * 100)}%／魚群 ${Math.round(T.fish.catchRateGlow * stateMul() * 100)}%　狀態：${STATE_NAME[T.fish.stateMode]}`, 10, H - 12);
 }
 
 function catchFish(f) {
   f.dead = true;
+  const before = S.winSum;
+  catchPay(f);
+  FISH.gained += S.winSum - before;
+}
+
+function catchPay(f) {
   if (f.shun) {
     S.pendingShun = { type: f.type, stake: f.tier, forRound: S.round + 1 };
     log(`✨ 撈到特殊壽司魚 ${SUSHI[f.type].name}（押 ${f.tier}）→ 第 ${S.round + 1} 局可押特殊壽司`, 'w');
@@ -1180,13 +1310,21 @@ fcv.onclick = e => {
   const y = (e.clientY - r.top) * (fcv.height / r.height);
   const cost = FISH.weapon === 'net' ? T.fish.netCost : T.fish.grabCost;
   if (S.balance < cost) { log('餘額不足，撈不動了', 'b'); return; }
-  S.balance -= cost;
+  S.balance -= cost; S.totalBet += cost; FISH.spent += cost;   // 發射就付費，撈不到也算投入
+  const now = performance.now();
   const rad = FISH.weapon === 'net' ? T.fish.netRadius : 22;
   let hits = FISH.list.filter(f => !f.dead && Math.hypot(f.x - x, (f.y + (f.dy || 0)) - y) <= rad + f.r);
   if (FISH.weapon === 'grab') hits = hits.slice(0, 1);
-  FISH.ripple = { x, y, rad, t0: performance.now() };
-  if (!hits.length) log(`空撈（-${cost} 枚）`, 'd');
-  hits.forEach(catchFish);
+  FISH.ripple = { x, y, rad, t0: now };
+  if (!hits.length) { log(`沒瞄到（-${cost} 枚）`, 'd'); refreshAll(); return; }
+  // 瞄到了也不一定撈得到：逐隻擲骰
+  let got = 0, miss = 0;
+  hits.forEach(f => {
+    if (Math.random() < catchChance(f)) { catchFish(f); got++; }
+    else { spook(f, now); miss++; }
+  });
+  if (!got) log(`失手：魚受驚跑掉 ×${miss}（-${cost} 枚）`, 'd');
+  else if (miss) log(`跑掉 ${miss} 隻`, 'd');
   refreshAll();
 };
 $('wNet').onclick = () => { FISH.weapon = 'net'; refreshAll(); };
@@ -1197,7 +1335,9 @@ function endFishing() {
   if (S.phase !== 'FISH') return;
   if (FISH.raf) cancelAnimationFrame(FISH.raf);
   FISH.raf = null;
-  log('漁結束', 'd');
+  const net = FISH.gained - FISH.spent;
+  log(`漁結束：投入 ${fmt(FISH.spent)}／回收 ${fmt(FISH.gained)} → ${net >= 0 ? '+' : ''}${fmt(net)} 枚`,
+    net >= 0 ? 'w' : 'd');
   finishRound();
 }
 
@@ -1439,9 +1579,20 @@ function drawFishShape(c, x, y, r, dir, type, t, opt) {
 /* ============ 繪製輪盤 ============ */
 const cv = $('wheel'), cx = cv.getContext('2d');
 const CX = 287, CY = 287, R_OUT = 272, R_IN = 150, R_BALL = 232;
-function pocketAngle(i) { return -Math.PI / 2 + (i + 0.5) * (Math.PI * 2 / 16); }
+// 輪盤是「一直在轉」的：pocketAngleLocal 是格子在盤上的固定角度，
+// pocketAngle 是它此刻在螢幕上的角度（＝盤面角度 + 自轉量）。
+// 飛行中的球一律用 local 座標算，畫的時候才加上 wheelRot，球才會跟著盤子走。
+function pocketAngleLocal(i) { return -Math.PI / 2 + (i + 0.5) * (Math.PI * 2 / 16); }
+function pocketAngle(i) { return pocketAngleLocal(i) + S.wheelRot; }
+function stepWheel(now) {
+  if (!S.rotT) S.rotT = now;
+  const dt = Math.min(0.1, (now - S.rotT) / 1000);   // 分頁切回來時不要一次跳一大段
+  S.rotT = now;
+  S.wheelRot = (S.wheelRot + dt * T.rhythm.wheelSpin * Math.PI / 180) % (Math.PI * 2);
+}
 
 function draw() {
+  if (S.pockets.length !== 16) return;     // 盤面還沒生成就別畫（第一幀防呆）
   const now = performance.now();
   cx.clearRect(0, 0, cv.width, cv.height);
   // 外圈：檯面木紋感 + 內陰影
@@ -1456,7 +1607,7 @@ function draw() {
 
   const seg = Math.PI * 2 / 16;
   for (let i = 0; i < 16; i++) {
-    const a0 = -Math.PI / 2 + i * seg, a1 = a0 + seg;
+    const a0 = -Math.PI / 2 + i * seg + S.wheelRot, a1 = a0 + seg;
     const t = S.pockets[i];
     let spItem = S.spItems ? S.spItems[i] : null;      // 特別輪盤模式
     let revealing = false;
@@ -1546,10 +1697,13 @@ function draw() {
   cx.textAlign = 'center'; cx.fillStyle = '#7dd3fc';
   cx.font = 'bold 15px sans-serif';
   cx.fillText(`第 ${S.round} 局`, CX, CY - 30);
-  cx.font = 'bold 34px sans-serif'; cx.fillStyle = '#fbbf24';
-  cx.fillText(`${S.balls.length} / 5`, CX, CY + 8);
+  const betting = S.phase === 'BET';
+  const secs = betLeft();
+  cx.font = 'bold 34px sans-serif';
+  cx.fillStyle = betting && secs <= 5 ? '#f87171' : '#fbbf24';
+  cx.fillText(betting ? secs.toFixed(1) : `${S.balls.length} / 5`, CX, CY + 8);
   cx.font = '11px sans-serif'; cx.fillStyle = '#64748b';
-  cx.fillText('球數', CX, CY + 26);
+  cx.fillText(betting ? '押注剩餘（秒）' : '球數', CX, CY + 26);
   if (S.phase === 'FREE') { cx.fillStyle = '#f0abfc'; cx.font = 'bold 13px sans-serif'; cx.fillText('FREE CHOICE', CX, CY + 52); }
 
   // 球：立體感（陰影 + 高光）
@@ -1574,7 +1728,7 @@ function draw() {
 
   // 飛行中的球（帶殘影）
   if (S.ballAnim && S.ballAnim.cur != null) {
-    const a = S.ballAnim.cur;
+    const a = S.ballAnim.cur + S.wheelRot;
     for (let k = 4; k >= 1; k--) {
       const aa = a + k * 0.055;
       cx.globalAlpha = 0.1 * (5 - k);
@@ -1587,7 +1741,7 @@ function draw() {
 
   // 第 6 顆 EX 球（金色，較大，落定後發光）
   if (S.exBall && S.exBall.cur != null) {
-    const a = S.exBall.landed ? S.exBall.to : S.exBall.cur;
+    const a = (S.exBall.landed ? S.exBall.to : S.exBall.cur) + S.wheelRot;
     const x = CX + Math.cos(a) * R_BALL, y = CY + Math.sin(a) * R_BALL;
     if (S.exBall.landed) {
       const pulse = 18 + Math.sin(now / 180) * 6;
@@ -1606,20 +1760,38 @@ function draw() {
 const PHASE_NAME = { BET: '押注中', DRAW: '抽球中', FREE: 'FREE CHOICE', SP: '老闆SP', FISH: '漁', SETTLE: '結算完成' };
 const fmt = n => Math.round(n).toLocaleString('en-US');
 
+/* 押注倒數（BET）／下一局倒數（SETTLE）：每幀更新，不進 refreshAll 以免整頁重畫 */
+function updateCd() {
+  const st = $('cdStat'), lb = st.firstElementChild, b = $('betCd');
+  if (S.phase === 'BET') {
+    const s = betLeft();
+    lb.textContent = '押注倒數';
+    b.textContent = s.toFixed(s < 10 ? 1 : 0);
+    st.classList.toggle('urge', s <= 5);
+  } else if (S.phase === 'SETTLE' && S.autoT) {
+    lb.textContent = '下一局';
+    b.textContent = Math.max(0, (S.nextAt - performance.now()) / 1000).toFixed(1);
+    st.classList.remove('urge');
+  } else if (S.phase === 'FREE') {
+    const s = Math.max(0, (S.freeAt - performance.now()) / 1000);
+    lb.textContent = 'FREE 倒數';
+    b.textContent = s.toFixed(1);
+    st.classList.add('urge');
+    $('fcCd').textContent = s.toFixed(1) + 's 後自動選';
+  } else {
+    lb.textContent = '押注倒數'; b.textContent = '—'; st.classList.remove('urge');
+  }
+}
+
 function refreshAll() {
   $('balance').textContent = fmt(S.balance);
-  $('betSum').textContent = fmt(S.betSum);
-  $('winSum').textContent = fmt(S.winSum);
-  $('roundNo').textContent = S.round;
-  $('ballCount').textContent = `${S.balls.length} / 5`;
-  $('phaseName').textContent = PHASE_NAME[S.phase] || S.phase;
-  $('totalBet').textContent = fmt(S.totalBet);
-  $('totalWin').textContent = fmt(S.totalWin);
+  $('roundBW').textContent = `${fmt(S.betSum)} / ${fmt(S.winSum)}`;
+  $('roundNo').textContent = `第 ${S.round} 局・${S.kinds.length} 種`;
+  $('phaseName').textContent = `${PHASE_NAME[S.phase] || S.phase}　${S.balls.length}/5 球`;
+  $('totalBW').textContent = `${fmt(S.totalBet)} / ${fmt(S.totalWin)}`;
   $('rtpNow').textContent = S.totalBet ? (S.totalWin / S.totalBet * 100).toFixed(1) + '%' : '—';
-  $('kindCount').textContent = `${S.kinds.length} 種壽司`;
-  $('capHint').textContent = fmt(T.econ.plateCap);
-  $('boardInfo').textContent =
-    `本局 ${S.kinds.length} 種壽司填 15 格＋1 格老闆SP。格數越少 → 命中機率越低 → 賠率越高。`;
+  $('stateName').textContent = `${STATE_NAME[T.fish.stateMode]}（撈魚 ×${stateMul().toFixed(2)}）`;
+  updateCd();
 
   // chips
   const chips = $('chips'); chips.innerHTML = '';
@@ -1662,7 +1834,7 @@ function refreshAll() {
   const [lo, hi] = KIND_SIZE[S.kind];
   const okCount = S.selected.length >= lo && S.selected.length <= hi;
   const h = document.createElement('div'); h.className = 'hint';
-  h.innerHTML = `點上面的壽司選 <b>${lo === hi ? lo : lo + '~' + hi}</b> 種（已選 <b>${S.selected.length}</b>）` +
+  h.innerHTML = `選 <b>${lo === hi ? lo : lo + '~' + hi}</b> 種（已選 <b>${S.selected.length}</b>）` +
     (okCount
       ? `　→　單盤賠付 <b style="color:#ffa9d0">${Math.round(STAKE[S.kind] * multOf(S.kind, S.selected))}</b> 枚（×${multOf(S.kind, S.selected).toFixed(1)}）`
       : '');
@@ -1673,9 +1845,6 @@ function refreshAll() {
   b.disabled = !okCount || S.phase !== 'BET';
   b.onclick = () => addPlate(S.kind, S.selected);   // 刻意不清空選取，可連按累加盤數
   area.appendChild(b);
-  const h2 = document.createElement('div'); h2.className = 'hint'; h2.style.marginBottom = '0';
-  h2.textContent = '押注後選取會保留，連按就能同組合加盤。';
-  area.appendChild(h2);
 
   // 盤清單
   const tb = document.querySelector('#plateTable tbody'); tb.innerHTML = '';
@@ -1691,15 +1860,17 @@ function refreshAll() {
   });
 
   // 按鈕與提示
-  $('dealBtn').disabled = S.phase !== 'BET';
-  $('clearBtn').disabled = S.phase !== 'BET';
-  $('nextBtn').style.display = S.phase === 'SETTLE' ? '' : 'none';
+  $('clearBtn').disabled = S.phase !== 'BET' || !S.plates.length;
   document.querySelectorAll('.tab').forEach(t => {
     t.classList.toggle('active', t.dataset.kind === S.kind);
     t.classList.toggle('dis', S.phase !== 'BET');
   });
-  const hintTxt = { BET: '選壽司 → 按押注（可連按加盤）→ 開始抽球', DRAW: '抽球中…', FREE: '請使用 FREE CHOICE',
-    SP: '老闆SP — EX 球抽選中…', FISH: '漁進行中，點畫面撈魚', SETTLE: '結算完成，按「下一局」' };
+  const hintTxt = {
+    BET: '點壽司選種類 → 按押注（可連按加盤）；倒數歸零自動開球。',
+    DRAW: '抽球中…', FREE: '選 FREE CHOICE，逾時自動繼續。',
+    SP: '老闆SP — EX 球抽選中…', FISH: '漁進行中：點畫面撈魚。',
+    SETTLE: '結算完成，倒數後自動進下一局。',
+  };
   $('stateHint').textContent = hintTxt[S.phase] || '';
   document.querySelectorAll('[data-force]').forEach(b => {
     b.disabled = !(S.phase === 'BET' || S.phase === 'SETTLE');
@@ -1726,9 +1897,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     refreshAll();
   };
 });
-$('dealBtn').onclick = deal;
 $('clearBtn').onclick = clearBets;
-$('nextBtn').onclick = nextRound;
 
 /* ============ 強開（測試用）============
    把 5 顆球擺好、照常結算本局押注，然後直接進老闆SP 並把 EX 球導到指定獎項。 */
@@ -1738,7 +1907,8 @@ function forceEvent(kind) {
     S.drawOrder = shuffle([...Array(16).keys()]).slice(0, 5);
     S.balls = S.drawOrder.slice();
     S.hitTypes = new Set();
-    S.balls.forEach(i => { const t = S.pockets[i]; if (t !== SP_POCKET) S.hitTypes.add(t); });
+    histNew(S.round);
+    S.balls.forEach(i => { const t = S.pockets[i]; histBall(t); if (t !== SP_POCKET) S.hitTypes.add(t); });
     S.spHit = false;                 // 由強開接手，避免 settle 又觸發一次 SP
     S.phase = 'DRAW';
     log('（強開）直接擺好 5 顆球並結算本局', 'd');
@@ -1766,9 +1936,17 @@ function buildTune() {
   g.textContent = { rhythm: '節奏（即時生效）', prob: '機率（下一局生效）', econ: '賠率與經濟',
     sp: '老闆SP 獎項', fish: '漁' }[tuneTab];
   body.appendChild(g);
-  TUNE_META[tuneTab].forEach(([key, label, min, max, step]) => {
+  TUNE_META[tuneTab].forEach(([key, label, min, max, step, opts]) => {
     const row = document.createElement('div'); row.className = 'tune-row';
     const lb = document.createElement('label'); lb.textContent = label;
+    if (opts) {                       // 選單型參數（如內部狀態）
+      const sl = document.createElement('select');
+      sl.style.cssText = 'flex:1;min-width:0;padding:3px 5px;font-size:11px;border-radius:6px;background:#0b1120;border:1px solid var(--line);color:var(--txt)';
+      opts.forEach((o, i) => { const op = document.createElement('option'); op.value = i; op.textContent = o; sl.appendChild(op); });
+      sl.value = T[tuneTab][key];
+      sl.onchange = () => { T[tuneTab][key] = Number(sl.value); saveTune(); refreshAll(); };
+      row.append(lb, sl); body.appendChild(row); return;
+    }
     const rg = document.createElement('input'); rg.type = 'range';
     rg.min = min; rg.max = max; rg.step = step; rg.value = T[tuneTab][key];
     const nb = document.createElement('input'); nb.type = 'number';
@@ -1798,23 +1976,26 @@ $('tuneExport').onclick = () => {
   console.log(s);
 };
 
-/* 演出需要持續重繪（金幣、發光、SP 翻格、EX 球脈動），沒事時不畫 */
-(function idle(now) {
-  now = now || performance.now();
-  stepFX(now);
-  const busy = FX.coins.length || FX.glow > 0 ||
-    (FX.spReveal && now - FX.spReveal < 1800) ||
-    (S.exBall && S.exBall.landed && S.phase === 'SP');
-  if (busy) draw();
-  requestAnimationFrame(idle);
-})();
-
 /* ============ 啟動 ============ */
 newBoard();
+startBetPhase();
 buildTune();
 refreshAll();
-log(`迴轉壽司賓果 demo（build ${APP_BUILD}）已載入（復刻日本 8 人小型機台・第 3 代）。`, 'w');
-log('押注 → 抽 5 球 → 前 3 球後 FREE CHOICE → 結算。押注單位是「壽司種類」，同種佔多格。', 'd');
+log(`迴轉壽司賓果 demo（build ${APP_BUILD}）已載入。`, 'w');
+log(`機台不停：押注 ${T.rhythm.betSeconds} 秒 → 自動開 5 球 → 結算 → 下一局。`, 'd');
+
+/* 主迴圈（必須在 newBoard／startBetPhase 之後才啟動，否則第一幀會畫到空盤面）：輪盤一直緩慢自轉 → 每幀都要重畫；順便跑演出、倒數與自動開局 */
+(function loop(now) {
+  now = now || performance.now();
+  stepWheel(now);
+  stepFX(now);
+  updateCd();
+  if (S.phase === 'BET' && now >= S.betEndAt) deal();      // 押注時間到 → 自動開球
+  if (S.phase === 'FREE' && now >= S.freeAt) endFree();    // FREE 沒選 → 自動繼續，機台不會等人
+  if (S.phase !== 'FISH') draw();                          // 漁的時候輪盤被魚機蓋住，不用畫
+  requestAnimationFrame(loop);
+})();
+
 
 /* ============ 開發用情境跳轉 ============
    在網址後加 #demo=win / sp / fish / dairyo / shunryo，載入後直接跳到該情境，
@@ -1871,7 +2052,8 @@ window.__TEST__ = {
   S, T, FISH, FX, draw, drawFish, stepFX, celebrate, drawFishShape,
   hitProb, multOf, newBoard, addPlate, deal, nextRound,
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
-  SP_ITEMS,
+  SP_ITEMS, STATE_NAME, stateMul, catchChance, betLeft, startBetPhase, endFree, stepWheel,
+  autoFreePick, HIST, missingOf,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
   forceSP(item) {
     const free = []; for (let i = 0; i < 16; i++) if (!S.balls.includes(i)) free.push(i);
