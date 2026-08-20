@@ -328,6 +328,25 @@
     text-shadow: 0 2px 0 #6b4a10, 0 0 12px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.9);
   }
   .stack.done .pay { color: #d6ffe9; text-shadow: 0 2px 0 #14512f, 0 0 12px rgba(0,0,0,.9); }
+  /* ---- 印章卡（スタンプカード）---- */
+  .stampbox { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.07); }
+  .sb-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 11.5px; color: var(--muted); }
+  .sb-head b { font-size: 13px; color: var(--gold-2); font-variant-numeric: tabular-nums; }
+  .sb-dots { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; margin: 6px 0 5px; }
+  .sb-dots i {
+    position: relative; height: 15px; border-radius: 4px;
+    background: #0d1526; border: 1px solid var(--line-soft);
+  }
+  .sb-dots i.on {
+    background: linear-gradient(180deg, #f8dc9a, #c08a1c); border-color: #ffe6a8;
+    box-shadow: 0 0 7px rgba(233,181,63,.55);
+  }
+  .sb-dots i.key { border-color: #7a5fb5; }
+  .sb-dots i.key.on { box-shadow: 0 0 9px rgba(192,132,252,.75); }
+  .sb-bar { height: 4px; border-radius: 3px; background: #0d1526; overflow: hidden; }
+  .sb-bar i { display: block; height: 100%; background: linear-gradient(90deg, #6d5bb0, var(--gold)); }
+  .sb-note { margin-top: 4px; font-size: 10px; color: var(--muted-2); line-height: 1.5; }
+
   /* ---- 開球轉場「抽選開始」---- */
   #startFx {
     position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
@@ -406,6 +425,12 @@
       <div class="kv"><span>總投入 / 總贏分</span><b id="totalBW">0 / 0</b></div>
       <div class="kv"><span>回收率</span><b class="g" id="rtpNow">—</b></div>
       <div class="kv"><span>內部狀態</span><b id="stateName" style="font-size:13px">普通</b></div>
+      <div class="stampbox">
+        <div class="sb-head"><span>印章</span><b id="stampNum">0 / 10</b></div>
+        <div class="sb-dots" id="stampDots"></div>
+        <div class="sb-bar"><i id="stampBar"></i></div>
+        <div class="sb-note" id="stampNote"></div>
+      </div>
     </div>
 
     <div class="card grow">
@@ -476,6 +501,8 @@
         <button class="btn" data-force="ryo">🎣 漁</button>
         <button class="btn" data-force="dairyo">🌊 大漁</button>
         <button class="btn" data-force="shunryo">✨ 特殊漁</button>
+        <button class="btn" data-force="purin">🍮 布丁</button>
+        <button class="btn" data-force="jp">💎 JP</button>
         <button class="btn" id="tuneBtn">⚙️ 調參</button>
       </div>
       <div class="hint" id="stateHint" style="margin:6px 0 0"></div>
@@ -503,7 +530,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'A6';
+const APP_BUILD = 'A7';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -555,8 +582,14 @@ const DEF = {
   },
   sp: {
     dairyo:  0.15,   // 大漁格出現機率
-    purinWin: 100,   // 布丁贏分（原機需印章 5 個，本版不做印章 → 固定獎）
-    jpWin:   1500,   // JP 贏分（原機需印章 10 個 → 固定獎）
+    // 印章（スタンプ）：押注累積，5 個解鎖布丁、10 個解鎖 JP
+    //  [攻略] 極（大型）約 200~300 枚押注得 1 個；本作對標小型第 3 代 → 130~150 枚
+    //  [攻略] 一次押注最多只給 1 個印章；開機時可能已經有 1~4 個
+    stampPer:  140,  // 平均多少押注額累積 1 個印章
+    stampPurin: 5,   // 解鎖布丁所需印章
+    stampJP:   10,   // 解鎖 JP 所需印章
+    purinWin: 300,   // 布丁贏分（[攻略] 極為 300 枚）
+    jpWin:   2000,   // JP 贏分（[攻略] 極的老闆JP 約 2000~5000 枚，本作取下緣）
     shun60:   400,   // 特殊壽司 押 60 的贏分（[攻略] 大型版老闆SP 的值）
     shun120: 1000,
     shun240: 2000,
@@ -614,7 +647,10 @@ const TUNE_META = {
   ],
   sp: [
     ['dairyo', '大漁出現率', 0, 1, 0.05],
-    ['purinWin', '布丁贏分', 20, 1000, 10],
+    ['stampPer', '印章所需押注', 20, 400, 10],
+    ['stampPurin', '布丁所需印章', 1, 20, 1],
+    ['stampJP', 'JP 所需印章', 1, 20, 1],
+    ['purinWin', '布丁贏分', 20, 2000, 10],
     ['jpWin', 'JP 贏分', 200, 10000, 50],
     ['shun60', '旬60 贏分', 100, 3000, 50],
     ['shun120', '旬120 贏分', 200, 6000, 50],
@@ -673,6 +709,8 @@ const S = {
   spFree: null,          // 特別輪盤可用的格子
   exBall: null,          // 第 6 顆 EX 球
   pendingShun: null,     // 漁中撈到的特殊壽司魚 → 下一局可押
+  stamps: 0,             // 印章數（跨局累積）
+  stampPot: 0,           // 距離下一個印章還差多少押注額
   wheelRot: 0,           // 輪盤自轉角度（弧度），持續累加
   rotT: 0,               // 上一次推進自轉的時間戳
   betEndAt: 0,           // 押注截止時間（performance.now()）
@@ -798,7 +836,7 @@ function payRange(kind, sel) {
 function plateKey(kind, types) { return kind + ':' + types.slice().sort((a, b) => a - b).join(','); }
 
 /* 押注失敗的原因要讓玩家看得到（log 只進 console） */
-function notice(msg) { S.notice = { msg, at: performance.now() }; }
+function notice(msg, good) { S.notice = { msg, at: performance.now(), good: !!good }; }
 
 /* 回傳 true/false，讓「＋10 盤」知道能不能繼續加 */
 function addPlate(kind, types, quiet) {
@@ -814,6 +852,7 @@ function addPlate(kind, types, quiet) {
     const w = { 60: T.sp.shun60, 120: T.sp.shun120, 240: T.sp.shun240 }[stake] || T.sp.shun60;
     S.plates.push({ key, kind, types: types.slice(), count: 1, mult: w / stake, per: w, stake, free: false, result: null });
     S.balance -= stake; S.betSum += stake; S.totalBet += stake;
+    gainStamp(stake);
     log(`押特殊壽司 ${SUSHI[types[0]].name}（${stake} 枚）`);
     refreshAll(); return true;
   }
@@ -834,8 +873,22 @@ function addPlate(kind, types, quiet) {
     if (p.free) log(`✨ ${KIND_NAME[kind]} 取得 FREE CHOICE`);
   }
   S.balance -= stake; S.betSum += stake; S.totalBet += stake;
+  gainStamp(stake);
   refreshAll();
   return true;
+}
+
+/* 印章：押注額累積，但「一次押注最多給 1 個」（[攻略] 原機規則） */
+function gainStamp(stake) {
+  S.stampPot += stake;
+  if (S.stampPot < T.sp.stampPer) return;
+  S.stampPot -= T.sp.stampPer;
+  if (S.stampPot > T.sp.stampPer) S.stampPot = T.sp.stampPer - 1;   // 一次最多 1 個，多的不累到第 2 個
+  S.stamps++;
+  const msg = S.stamps === T.sp.stampJP ? `🏅 印章 ${S.stamps} 個 — 老闆SP 可押 JP 了！`
+    : S.stamps === T.sp.stampPurin ? `🏅 印章 ${S.stamps} 個 — 老闆SP 可押布丁了！`
+      : `🏅 印章 +1（${S.stamps} 個）`;
+  notice(msg, true); log(msg);
 }
 
 /* 一次加 n 盤：加到不能加為止，並說明停在哪 */
@@ -1129,10 +1182,12 @@ function startSP() {
   S.phase = 'SP';
   const free = [];
   for (let i = 0; i < 16; i++) if (!S.balls.includes(i)) free.push(i);
-  // 特別輪盤配置：漁與特殊漁常設、大漁機率、布丁與JP常設、有特殊壽司盤才有特殊壽司格，其餘空獎
+  // 特別輪盤配置：漁與特殊漁常設、大漁機率、
+  // 布丁與 JP 要有足夠印章才會出現（[攻略] 5 個換布丁、10 個換 JP），其餘空獎
   const items = ['ryo', 'ryo', 'shunryo'];
   if (Math.random() < T.sp.dairyo) items.push('dairyo');
-  items.push('purin', 'jp');
+  if (S.stamps >= T.sp.stampPurin) items.push('purin');
+  if (S.stamps >= T.sp.stampJP) items.push('jp');
   if (S.plates.some(p => p.kind === 'shun')) items.push('shun');
   while (items.length < free.length) items.push('gag');
   items.length = free.length;
@@ -1142,8 +1197,12 @@ function startSP() {
   FX.spReveal = performance.now();     // 特別輪盤逐格翻開的轉場
   toast('老闆SP', '追加第 6 顆 EX 球');
   $('spBox').style.display = 'block';
+  const lack = [];
+  if (S.stamps < T.sp.stampPurin) lack.push(`布丁還差 ${T.sp.stampPurin - S.stamps} 個印章`);
+  if (S.stamps < T.sp.stampJP) lack.push(`JP 還差 ${T.sp.stampJP - S.stamps} 個`);
   $('spHint').innerHTML = `沒有球的 <b>${free.length}</b> 格重配成特別輪盤：` +
-    free.map(i => SP_ITEMS[S.spItems[i]].emoji + SP_ITEMS[S.spItems[i]].label).join('　');
+    free.map(i => SP_ITEMS[S.spItems[i]].emoji + SP_ITEMS[S.spItems[i]].label).join('　') +
+    `<br>印章 <b>${S.stamps}</b> 個${lack.length ? '（' + lack.join('、') + '）' : '（布丁與 JP 都已解鎖）'}`;
   log('🎴 老闆SP！追加第 6 顆 EX 球', 'b');
   refreshAll();
   setTimeout(dropEX, 450);
@@ -1171,12 +1230,14 @@ function resolveSP(idx) {
   const it = S.spItems[idx];
   log(`EX 球 → ${SP_ITEMS[it].emoji} ${SP_ITEMS[it].label}`, 'b');
   if (it === 'purin') {
-    addWin(T.sp.purinWin); log(`🍮 布丁 +${T.sp.purinWin} 枚`, 'w');
-    celebrate(T.sp.purinWin, '🍮 布丁'); finishRound(); return;
+    S.stamps = Math.max(0, S.stamps - T.sp.stampPurin);      // 印章換掉了
+    addWin(T.sp.purinWin); log(`🍮 布丁 +${T.sp.purinWin} 枚（用掉 ${T.sp.stampPurin} 個印章）`);
+    celebrate(T.sp.purinWin, `🍮 布丁　-${T.sp.stampPurin} 印章`); finishRound(); return;
   }
   if (it === 'jp') {
-    addWin(T.sp.jpWin); log(`💎 JP +${T.sp.jpWin} 枚`, 'w');
-    celebrate(T.sp.jpWin, '💎 JACKPOT！'); finishRound(); return;
+    S.stamps = Math.max(0, S.stamps - T.sp.stampJP);
+    addWin(T.sp.jpWin); log(`💎 JP +${T.sp.jpWin} 枚（用掉 ${T.sp.stampJP} 個印章）`);
+    celebrate(T.sp.jpWin, `💎 JACKPOT！　-${T.sp.stampJP} 印章`); finishRound(); return;
   }
   if (it === 'shun') {
     const p = S.plates.find(x => x.kind === 'shun');
@@ -1904,6 +1965,30 @@ function draw() {
 const PHASE_NAME = { BET: '押注中', DRAW: '抽球中', FREE: 'FREE CHOICE', SP: '老闆SP', FISH: '漁', SETTLE: '結算完成' };
 const fmt = n => Math.round(n).toLocaleString('en-US');
 
+/* ============ 印章卡（スタンプカード）============
+   [攻略] 押注累積印章：5 個 → 老闆SP 可押布丁、10 個 → 可押 JP。 */
+function renderStamps() {
+  const need = T.sp.stampJP;
+  $('stampNum').textContent = `${S.stamps} / ${need}`;
+  const dots = $('stampDots');
+  if (dots.children.length !== need) {
+    dots.innerHTML = '';
+    for (let i = 0; i < need; i++) {
+      const d = document.createElement('i');
+      if (i + 1 === T.sp.stampPurin || i + 1 === need) d.className = 'key';
+      dots.appendChild(d);
+    }
+  }
+  [...dots.children].forEach((d, i) => d.classList.toggle('on', i < S.stamps));
+  $('stampBar').style.width = Math.min(100, S.stampPot / T.sp.stampPer * 100).toFixed(0) + '%';
+  const toPurin = T.sp.stampPurin - S.stamps, toJP = need - S.stamps;
+  $('stampNote').innerHTML = S.stamps >= need
+    ? '布丁與 <b style="color:#e9b53f">JP</b> 都已解鎖，進老闆SP 就能押'
+    : (S.stamps >= T.sp.stampPurin
+      ? `布丁已解鎖；JP 還差 <b>${toJP}</b> 個（每 ${T.sp.stampPer} 枚押注 1 個）`
+      : `再 <b>${toPurin}</b> 個解鎖布丁、<b>${toJP}</b> 個解鎖 JP（每 ${T.sp.stampPer} 枚押注 1 個）`);
+}
+
 /* ============ 我的座位：依盤數堆起來的壽司盤 ============
    實機是把押注做成一疊實體壽司盤放在自己的位子上，盤子顏色分價位。 */
 const PLATE_CLR = { maru: '', geta: 'red', funa: 'gold', shun: 'gold' };
@@ -1988,6 +2073,7 @@ function refreshAll() {
   $('totalBW').textContent = `${fmt(S.totalBet)} / ${fmt(S.totalWin)}`;
   $('rtpNow').textContent = S.totalBet ? (S.totalWin / S.totalBet * 100).toFixed(1) + '%' : '—';
   $('stateName').textContent = `${STATE_NAME[T.fish.stateMode]}（撈魚 ×${stateMul().toFixed(2)}）`;
+  renderStamps();
   updateCd();
 
   // chips
@@ -2079,8 +2165,8 @@ function refreshAll() {
     SETTLE: '結算完成，倒數後自動進下一局。',
   };
   const nt = S.notice && performance.now() - S.notice.at < 6000 ? S.notice : null;
-  $('stateHint').textContent = nt ? '⚠️ ' + nt.msg : (hintTxt[S.phase] || '');
-  $('stateHint').style.color = nt ? '#ffb4a2' : '';
+  $('stateHint').textContent = nt ? (nt.good ? nt.msg : '⚠️ ' + nt.msg) : (hintTxt[S.phase] || '');
+  $('stateHint').style.color = nt ? (nt.good ? '#ffdf9e' : '#ffb4a2') : '';
   document.querySelectorAll('[data-force]').forEach(b => {
     b.disabled = !(S.phase === 'BET' || S.phase === 'SETTLE');
   });
@@ -2111,7 +2197,10 @@ $('clearBtn').onclick = clearBets;
 /* ============ 強開（測試用）============
    把 5 顆球擺好、照常結算本局押注，然後直接進老闆SP 並把 EX 球導到指定獎項。 */
 function forceEvent(kind) {
-  if (S.phase !== 'BET' && S.phase !== 'SETTLE') { log('抽球／SP／漁 進行中不能強開', 'd'); return; }
+  if (S.phase !== 'BET' && S.phase !== 'SETTLE') { log('抽球／SP／漁 進行中不能強開'); return; }
+  // 布丁／JP 需要印章，強開時先把印章補足，方便展示
+  if (kind === 'purin' && S.stamps < T.sp.stampPurin) S.stamps = T.sp.stampPurin;
+  if (kind === 'jp' && S.stamps < T.sp.stampJP) S.stamps = T.sp.stampJP;
   if (S.phase === 'BET') {
     S.drawOrder = shuffle([...Array(16).keys()]).slice(0, 5);
     S.balls = S.drawOrder.slice();
@@ -2198,6 +2287,7 @@ window.addEventListener('resize', fitScreen);
 fitScreen();
 
 /* ============ 啟動 ============ */
+S.stamps = 1 + rnd(4);          // [攻略] 開機時常常已經有 1~4 個印章
 newBoard();
 startBetPhase();
 buildTune();
@@ -2275,7 +2365,7 @@ window.__TEST__ = {
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
   SP_ITEMS, STATE_NAME, stateMul, catchChance, betLeft, startBetPhase, endFree, stepWheel,
   autoFreePick, HIST, missingOf, addPlates, renderSeat, fitScreen, payRange, startFx,
-  refreshAll, KIND_SIZE, STAKE, GW, GH, HD,
+  refreshAll, KIND_SIZE, STAKE, gainStamp, renderStamps, GW, GH, HD,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
   forceSP(item) {
     const free = []; for (let i = 0; i < 16; i++) if (!S.balls.includes(i)) free.push(i);
