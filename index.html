@@ -290,23 +290,6 @@
     background: #0b1120; border: 1px solid var(--line); color: var(--txt);
     font-variant-numeric: tabular-nums;
   }
-  /* ---- 轉盤上方：我押注的壽司（開中會亮） ---- */
-  .mybets {
-    display: none; flex: 0 0 auto; align-items: center; gap: 6px; flex-wrap: wrap;
-    margin: 0 0 6px; padding: 5px 8px; border-radius: 11px;
-    background: linear-gradient(180deg, #131c33, #0b1223); border: 1px solid var(--line);
-  }
-  .mybets.on { display: flex; }
-  .mybets .mb-lb { font-size: 10.5px; letter-spacing: 1px; color: var(--muted-2); margin-right: 2px; }
-  .mb {
-    position: relative; display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 4px;
-    border-radius: 999px; font-size: 12px; font-weight: 700; color: #d7e2f7;
-    background: #0d1526; border: 1px solid var(--line-soft);
-  }
-  .mb.hit { color: #eafff3; border-color: var(--jade); background: linear-gradient(180deg, #1c5c3c, #10402a); }
-  .mb .mb-n { font-size: 10px; font-weight: 400; color: var(--muted); }
-  .mb.hit .mb-n { color: #bdf3d6; }
-
   /* ---- 我的座位：一疊實體壽司盤，上面擺這組的壽司、正面印當選額（照實機） ---- */
   .seat-grp { display: flex; align-items: flex-end; gap: 10px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
   .seat-grp:last-child { border-bottom: 0; }
@@ -345,6 +328,53 @@
     text-shadow: 0 2px 0 #6b4a10, 0 0 12px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.9);
   }
   .stack.done .pay { color: #d6ffe9; text-shadow: 0 2px 0 #14512f, 0 0 12px rgba(0,0,0,.9); }
+  /* ---- 開球轉場「抽選開始」---- */
+  #startFx {
+    position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
+    pointer-events: none; opacity: 0;
+  }
+  #startFx.go { animation: sfFade var(--sf, 1.4s) ease-out forwards; }
+  #startFx.go .sf-in { animation: sfPop var(--sf, 1.4s) ease-out forwards; }
+  #startFx .sf-bg {
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(4,8,16,.94) 0 30%, rgba(4,8,16,.55) 46%, rgba(4,8,16,0) 66%);
+  }
+  #startFx .sf-in { position: relative; text-align: center; }
+  #startFx .sf-sub {
+    font-size: 17px; font-weight: 700; letter-spacing: 6px; color: #9fd4ff;
+    text-shadow: 0 2px 10px rgba(0,0,0,.9);
+  }
+  #startFx .sf-main {
+    margin-top: 4px; font-size: 62px; font-weight: 900; letter-spacing: 10px; line-height: 1.1;
+    background: linear-gradient(180deg, #fff8e2, var(--gold) 52%, #a8761f);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 0 rgba(0,0,0,.55)) drop-shadow(0 0 26px rgba(233,181,63,.75));
+  }
+  @keyframes sfFade {
+    0% { opacity: 0; } 16% { opacity: 1; } 72% { opacity: 1; } 100% { opacity: 0; }
+  }
+  @keyframes sfPop {
+    0%   { transform: scale(1.75); }
+    18%  { transform: scale(1); }
+    70%  { transform: scale(1.02); }
+    100% { transform: scale(.92); }
+  }
+
+  /* ---- 選壽司時的當選額區間（實機是「あたり ○○～○○」）---- */
+  .odds {
+    display: flex; align-items: center; gap: 8px; margin: 8px 0 6px; padding: 6px 10px;
+    border-radius: 11px; border: 1px solid var(--gold-dim);
+    background: linear-gradient(180deg, rgba(233,181,63,.14), rgba(120,80,10,.16));
+  }
+  .odds .od-lb { font-size: 10.5px; letter-spacing: 1px; color: #d6b98f; }
+  .odds .od-v {
+    margin-left: auto; font-size: 21px; font-weight: 900; color: var(--gold-2);
+    font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 rgba(0,0,0,.5);
+  }
+  .odds .od-v small { font-size: 12px; font-weight: 700; color: #d6b98f; }
+  .odds.wait { border-color: var(--line); background: #0e1729; }
+  .odds.wait .od-v { font-size: 13px; color: var(--muted-2); text-shadow: none; }
+
   .hint { font-size: 10.5px; color: var(--muted-2); line-height: 1.6; margin: 6px 0; }
   .kv { padding: 5px 0; }
   .sub { margin-bottom: 8px; }
@@ -387,11 +417,10 @@
   <!-- ===== 中欄：舞台（輪盤／魚機共用同一塊） ===== -->
   <div class="col">
     <div class="card mid">
-      <div id="myBets" class="mybets"></div>
-
       <div class="stage" id="stage">
         <canvas id="wheel" width="861" height="861"></canvas>
         <canvas id="fish" width="861" height="861"></canvas>
+        <div id="startFx"><div class="sf-bg"></div><div class="sf-in"><div class="sf-sub">第 1 局</div><div class="sf-main">抽選開始</div></div></div>
       </div>
 
       <!-- 魚機控制條（魚機接管轉盤時才出現） -->
@@ -474,7 +503,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'A5';
+const APP_BUILD = 'A6';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -503,6 +532,7 @@ const DEF = {
     ballGap:    520,    // 球與球之間的間隔 (ms)
     settlePause: 700,   // 結算前的停頓 (ms)
     spinTurns:  1.25,   // 球在盤上繞幾圈才落定（圈數少＋時間長＝慢慢滾）
+    startFx:   1400,    // 「抽選開始」轉場長度 (ms)，0 = 不演出
     betSeconds:  30,    // 押注時間（秒）；歸零自動開球
     freeSeconds: 10,    // FREE CHOICE 的選擇時間（秒）；歸零自動繼續
     roundGap:   3.5,    // 結算後幾秒自動進下一局
@@ -558,6 +588,7 @@ const TUNE_META = {
     ['ballGap', '球間隔 ms', 0, 1500, 50],
     ['settlePause', '結算停頓 ms', 0, 2000, 50],
     ['spinTurns', '繞盤圈數', 0.25, 6, 0.25],
+    ['startFx', '開球轉場 ms', 0, 4000, 100],
     ['betSeconds', '押注秒數', 5, 120, 5],
     ['freeSeconds', 'FREE 選擇秒數', 3, 30, 1],
     ['roundGap', '結算→下局 秒', 0.5, 15, 0.5],
@@ -744,6 +775,25 @@ const STAKE = { maru: 3, geta: 5, funa: 10 };
 const KIND_NAME = { maru: '圓盤', geta: '三貫', funa: '五貫', shun: '特殊壽司' };
 const KIND_SIZE = { maru: [1, 2], geta: [3, 3], funa: [5, 5] };
 
+/* 選壽司過程中的當選額區間：
+   還沒選滿時，補「格數最少的幾種」＝最高賠付，補「格數最多的幾種」＝最低賠付。 */
+function payRange(kind, sel) {
+  const [lo, hi] = KIND_SIZE[kind];
+  const stake = STAKE[kind];
+  if (!sel.length) return null;
+  if (sel.length >= lo) {                       // 已達下限 → 目前這組就是確定值
+    const m = multOf(kind, sel);
+    return { exact: true, min: Math.round(stake * m), max: Math.round(stake * m), maxMul: m };
+  }
+  const rest = S.kinds.filter(t => !sel.includes(t)).sort((a, b) => S.counts[a] - S.counts[b]);
+  const need = lo - sel.length;
+  if (rest.length < need) return null;
+  const best = sel.concat(rest.slice(0, need));           // 補最稀有 → 賠付最高
+  const worst = sel.concat(rest.slice(-need));            // 補最常見 → 賠付最低
+  const mMax = multOf(kind, best), mMin = multOf(kind, worst);
+  return { exact: false, min: Math.round(stake * mMin), max: Math.round(stake * mMax), maxMul: mMax };
+}
+
 /* ============ 押注 ============ */
 function plateKey(kind, types) { return kind + ':' + types.slice().sort((a, b) => a - b).join(','); }
 
@@ -840,9 +890,22 @@ function deal() {
   histNew(S.round);
   log(S.plates.length
     ? `第 ${S.round} 局開始抽球（押注 ${S.betSum} 枚）`
-    : `第 ${S.round} 局開球 — 本局未押注，空過`, S.plates.length ? 'i' : 'd');
+    : `第 ${S.round} 局開球 — 本局未押注，空過`);
   refreshAll();
-  dropBall(0);
+  startFx(() => dropBall(0));
+}
+
+/* 「抽選開始」轉場：實機在球開始跑之前會先喊一次 */
+function startFx(cb) {
+  const ms = T.rhythm.startFx;
+  const el = $('startFx');
+  if (!el || ms <= 0) { cb(); return; }
+  el.querySelector('.sf-sub').textContent = `第 ${S.round} 局`;
+  el.classList.remove('go');
+  void el.offsetWidth;                 // 重置動畫
+  el.style.setProperty('--sf', ms + 'ms');
+  el.classList.add('go');
+  setTimeout(() => { el.classList.remove('go'); cb(); }, ms);
 }
 
 function dropBall(i) {
@@ -1841,22 +1904,6 @@ function draw() {
 const PHASE_NAME = { BET: '押注中', DRAW: '抽球中', FREE: 'FREE CHOICE', SP: '老闆SP', FISH: '漁', SETTLE: '結算完成' };
 const fmt = n => Math.round(n).toLocaleString('en-US');
 
-/* ============ 我押注的壽司（轉盤上方）============
-   實機上玩家自己押了什麼會一直看得到，開中就亮起來——這裡照同樣的邏輯做。 */
-function renderMyBets() {
-  const box = $('myBets');
-  const cnt = new Map();                       // 壽司種類 → 押了幾盤
-  S.plates.forEach(p => p.types.forEach(t => cnt.set(t, (cnt.get(t) || 0) + p.count)));
-  if (!cnt.size) { box.className = 'mybets'; box.innerHTML = ''; return; }
-  box.className = 'mybets on';
-  const items = [...cnt.entries()].sort((a, b) => b[1] - a[1]);
-  box.innerHTML = '<span class="mb-lb">我押注的壽司</span>' + items.map(([t, n]) => {
-    const hit = S.hitTypes.has(t) || S.plates.some(p => p.freeUsed === t);
-    return `<span class="mb${hit ? ' hit' : ''}">${iconTag(t, 24)}${SUSHI[t].name}` +
-      `<span class="mb-n">${n}盤</span>${hit ? ' ✓' : ''}</span>`;
-  }).join('');
-}
-
 /* ============ 我的座位：依盤數堆起來的壽司盤 ============
    實機是把押注做成一疊實體壽司盤放在自己的位子上，盤子顏色分價位。 */
 const PLATE_CLR = { maru: '', geta: 'red', funa: 'gold', shun: 'gold' };
@@ -1983,12 +2030,26 @@ function refreshAll() {
   const area = $('betArea'); area.innerHTML = '';
   const [lo, hi] = KIND_SIZE[S.kind];
   const okCount = S.selected.length >= lo && S.selected.length <= hi;
-  const h = document.createElement('div'); h.className = 'hint';
-  h.innerHTML = `選 <b>${lo === hi ? lo : lo + '~' + hi}</b> 種（已選 <b>${S.selected.length}</b>）` +
-    (okCount
-      ? `　→　單盤賠付 <b style="color:#ffa9d0">${Math.round(STAKE[S.kind] * multOf(S.kind, S.selected))}</b> 枚（×${multOf(S.kind, S.selected).toFixed(1)}）`
-      : '');
+  const h = document.createElement('div'); h.className = 'hint'; h.style.margin = '4px 0 0';
+  h.innerHTML = `選 <b>${lo === hi ? lo : lo + '~' + hi}</b> 種（已選 <b>${S.selected.length}</b>）`;
   area.appendChild(h);
+  // 當選額：實機在選的過程就一直顯示「あたり ○○～○○」，選滿才變成確定值
+  const od = document.createElement('div');
+  const rg = payRange(S.kind, S.selected);
+  if (!rg) {
+    od.className = 'odds wait';
+    od.innerHTML = '<span class="od-lb">當選額</span><span class="od-v">再選 ' +
+      (KIND_SIZE[S.kind][0] - S.selected.length) + ' 種</span>';
+  } else if (rg.exact) {
+    od.className = 'odds';
+    od.innerHTML = '<span class="od-lb">當選額</span><span class="od-v">' + fmt(rg.max) +
+      ' <small>枚 ×' + rg.maxMul.toFixed(1) + '</small></span>';
+  } else {
+    od.className = 'odds';
+    od.innerHTML = '<span class="od-lb">當選額（看你補哪幾種）</span><span class="od-v">' +
+      fmt(rg.min) + ' <small>~</small> ' + fmt(rg.max) + ' <small>枚</small></span>';
+  }
+  area.appendChild(od);
   const row = document.createElement('div'); row.className = 'row'; row.style.marginTop = '4px';
   const b = document.createElement('button');
   b.className = 'btn pri';
@@ -2003,7 +2064,6 @@ function refreshAll() {
   row.append(b, b10);
   area.appendChild(row);
 
-  renderMyBets();
   renderSeat();
 
   // 按鈕與提示
@@ -2214,7 +2274,8 @@ window.__TEST__ = {
   hitProb, multOf, newBoard, addPlate, deal, nextRound,
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
   SP_ITEMS, STATE_NAME, stateMul, catchChance, betLeft, startBetPhase, endFree, stepWheel,
-  autoFreePick, HIST, missingOf, addPlates, renderSeat, renderMyBets, fitScreen, GW, GH, HD,
+  autoFreePick, HIST, missingOf, addPlates, renderSeat, fitScreen, payRange, startFx,
+  refreshAll, KIND_SIZE, STAKE, GW, GH, HD,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
   forceSP(item) {
     const free = []; for (let i = 0; i < 16; i++) if (!S.balls.includes(i)) free.push(i);
