@@ -530,7 +530,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'A8';
+const APP_BUILD = 'A9';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -564,6 +564,7 @@ const DEF = {
     freeSeconds: 10,    // FREE CHOICE 的選擇時間（秒）；歸零自動繼續
     roundGap:   3.5,    // 結算後幾秒自動進下一局
     wheelSpin:    6,    // 輪盤持續自轉的速度（度／秒）
+    beltSpin:    -9,    // 外圈迴轉帶的速度（度／秒，負值＝反向轉）
   },
   prob: {
     rtp:         0.92,  // 賠付係數（倍率 = rtp / 命中機率）
@@ -626,6 +627,7 @@ const TUNE_META = {
     ['freeSeconds', 'FREE 選擇秒數', 3, 30, 1],
     ['roundGap', '結算→下局 秒', 0.5, 15, 0.5],
     ['wheelSpin', '輪盤自轉 度/秒', 0, 60, 1],
+    ['beltSpin', '迴轉帶 度/秒', -40, 40, 1],
   ],
   prob: [
     ['rtp', '賠付係數 RTP', 0.5, 1.2, 0.01],
@@ -783,6 +785,55 @@ function newBoard() {
   for (let i = 0; i < 16; i++) pockets.push(i === spAt ? SP_POCKET : slots[si++]);
 
   S.pockets = pockets; S.kinds = kinds; S.counts = counts;
+  makeBelt();                      // 盤面換了 → 迴轉帶上的組合也重配
+}
+
+/* ============ 迴轉帶：系統配好的壽司組合（實機是一盤盤從你面前經過，看上眼就拿）============
+   每局重配：從稀有到常見各配幾組，讓玩家一眼看到「賭大的」跟「穩的」兩種選擇。 */
+const BELT = { list: [], rot: 0, sel: -1 };
+
+function makeBelt() {
+  const ks = S.kinds.slice().sort((a, b) => S.counts[a] - S.counts[b]);   // 稀有在前
+  const n = ks.length, mid = Math.floor(n / 2);
+  const out = [];
+  const add = (kind, types) => {
+    if (types.length !== new Set(types).size) return;
+    if (out.some(o => o.kind === kind && o.types.slice().sort().join() === types.slice().sort().join())) return;
+    out.push({ kind, types });
+  };
+  add('maru', [ks[0]]);                       // 圓盤：最稀有 1 種（高賠）
+  add('maru', [ks[n - 1]]);                   // 圓盤：最常見 1 種（穩）
+  add('maru', [ks[0], ks[1]]);                // 圓盤：兩種稀有
+  add('geta', ks.slice(0, 3));                // 三貫：全稀有
+  add('geta', ks.slice(-3));                  // 三貫：全常見
+  add('geta', [ks[0], ks[mid], ks[n - 1]]);   // 三貫：混搭
+  if (n >= 5) {
+    add('funa', ks.slice(0, 5));              // 五貫：全稀有（最高賠）
+    add('funa', ks.slice(-5));                // 五貫：全常見
+  }
+  BELT.list = out;
+  BELT.sel = -1;
+  refreshBeltPay();
+}
+
+/* 每盤的 BINGO得分（賠率變動時要跟著更新） */
+function refreshBeltPay() {
+  BELT.list.forEach(c => {
+    c.mult = multOf(c.kind, c.types);
+    c.per = Math.round(STAKE[c.kind] * c.mult);
+  });
+}
+
+/* 點迴轉帶上的盤子 → 直接套用那組合 */
+function pickBelt(i) {
+  const c = BELT.list[i];
+  if (!c || S.phase !== 'BET') return;
+  BELT.sel = i;
+  S.kind = c.kind;
+  S.selected = c.types.slice();
+  const per = Math.round(STAKE[c.kind] * multOf(c.kind, c.types));
+  notice(`已選 ${KIND_NAME[c.kind]}：${c.types.map(t => SUSHI[t].name).join('＋')}　BINGO得分 ${fmt(per)}`, true);
+  refreshAll();
 }
 
 /* ============ 賠率計算 ============ */
@@ -1782,7 +1833,9 @@ function drawFishShape(c, x, y, r, dir, type, t, opt) {
    每次繪製前把 context 縮放回遊戲座標，其他程式碼都不用改。 */
 const GW = 574, GH = 574, HD = 1.5;
 const cv = $('wheel'), cx = cv.getContext('2d');
-const CX = 287, CY = 287, R_OUT = 272, R_IN = 150, R_BALL = 232;
+const CX = 287, CY = 287, R_OUT = 222, R_IN = 122, R_BALL = 190;
+const R_ICON = 186, R_NAME = 148;                 // 格內壽司圖／名稱的半徑
+const BELT_IN = 230, BELT_OUT = 284, BELT_R = 257, BELT_PR = 27;   // 外圈迴轉帶
 // 輪盤是「一直在轉」的：pocketAngleLocal 是格子在盤上的固定角度，
 // pocketAngle 是它此刻在螢幕上的角度（＝盤面角度 + 自轉量）。
 // 飛行中的球一律用 local 座標算，畫的時候才加上 wheelRot，球才會跟著盤子走。
@@ -1790,9 +1843,13 @@ function pocketAngleLocal(i) { return -Math.PI / 2 + (i + 0.5) * (Math.PI * 2 / 
 function pocketAngle(i) { return pocketAngleLocal(i) + S.wheelRot; }
 function stepWheel(now) {
   if (!S.rotT) S.rotT = now;
-  const dt = Math.min(0.1, (now - S.rotT) / 1000);   // 分頁切回來時不要一次跳一大段
+  const dt = Math.max(0, Math.min(0.1, (now - S.rotT) / 1000));   // 分頁切回來時不要一次跳一大段，也不倒退
   S.rotT = now;
   S.wheelRot = (S.wheelRot + dt * T.rhythm.wheelSpin * Math.PI / 180) % (Math.PI * 2);
+  BELT.rot = (BELT.rot + dt * T.rhythm.beltSpin * Math.PI / 180) % (Math.PI * 2);
+}
+function beltAngle(i) {
+  return -Math.PI / 2 + BELT.rot + i * (Math.PI * 2 / Math.max(1, BELT.list.length));
 }
 
 function draw() {
@@ -1809,6 +1866,8 @@ function draw() {
   cx.strokeStyle = '#3b4a68'; cx.lineWidth = 6; cx.stroke();
   cx.beginPath(); cx.arc(CX, CY, R_OUT + 6, 0, Math.PI * 2);
   cx.strokeStyle = 'rgba(251,191,36,.25)'; cx.lineWidth = 2; cx.stroke();
+
+  drawBeltTrack();
 
   const seg = Math.PI * 2 / 16;
   for (let i = 0; i < 16; i++) {
@@ -1854,23 +1913,23 @@ function draw() {
     // 壽司圖：跟著扇形轉（像迴轉帶上的盤子）
     cx.save();
     cx.globalAlpha = alpha;
-    cx.translate(CX + Math.cos(am) * 228, CY + Math.sin(am) * 228);
+    cx.translate(CX + Math.cos(am) * R_ICON, CY + Math.sin(am) * R_ICON);
     cx.rotate(am + Math.PI / 2 + (Math.sin(am) > 0 ? Math.PI : 0));
     cx.textAlign = 'center'; cx.textBaseline = 'middle';
     if (spItem || isSP) {
-      cx.font = '30px serif';
+      cx.font = '26px serif';
       cx.fillText(spItem ? SP_ITEMS[spItem].emoji : '🎴', 0, 0);
     } else {
-      cx.save(); cx.scale(0.5, 0.5); drawSushi(cx, t); cx.restore();
+      cx.save(); cx.scale(0.42, 0.42); drawSushi(cx, t); cx.restore();
     }
     cx.restore();
     // 名稱：永遠水平，深色藥丸底，任何底色都讀得清
     cx.save();
     cx.globalAlpha = alpha;
-    cx.translate(CX + Math.cos(am) * 178, CY + Math.sin(am) * 178);
+    cx.translate(CX + Math.cos(am) * R_NAME, CY + Math.sin(am) * R_NAME);
     cx.textAlign = 'center'; cx.textBaseline = 'middle';
     const nm = spItem ? SP_ITEMS[spItem].label : (isSP ? '老闆SP' : ART[t].label);
-    cx.font = 'bold 12.5px "Noto Sans TC", sans-serif';
+    cx.font = 'bold 11.5px "Noto Sans TC", sans-serif';
     const w = cx.measureText(nm).width + 13;
     cx.fillStyle = 'rgba(6,10,20,.8)';
     roundRect(cx, -w / 2, -9.5, w, 19, 9); cx.fill();
@@ -1958,8 +2017,105 @@ function draw() {
     ball(x, y, 14, '#fff7d6', '#d97706', 'EX', '#431407');
   }
 
+  drawBeltPlates(now);
   drawFX(now);
 }
+
+/* ============ 外圈迴轉帶 ============ */
+function drawBeltTrack() {
+  // 檯面：深木色環＋內外緣高光，像壽司店的輸送帶
+  cx.save();
+  cx.beginPath(); cx.arc(CX, CY, BELT_OUT, 0, 6.28);
+  cx.arc(CX, CY, BELT_IN, 0, 6.28, true);
+  const g = cx.createRadialGradient(CX, CY, BELT_IN, CX, CY, BELT_OUT);
+  g.addColorStop(0, '#3a2a1c'); g.addColorStop(.5, '#573b25'); g.addColorStop(1, '#2a1a10');
+  cx.fillStyle = g; cx.fill('evenodd');
+  cx.restore();
+  cx.beginPath(); cx.arc(CX, CY, BELT_OUT - 1, 0, 6.28);
+  cx.strokeStyle = 'rgba(255,220,160,.22)'; cx.lineWidth = 2; cx.stroke();
+  cx.beginPath(); cx.arc(CX, CY, BELT_IN + 1, 0, 6.28);
+  cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.lineWidth = 2; cx.stroke();
+  // 輸送帶的節板：跟著帶子一起走
+  cx.save();
+  cx.strokeStyle = 'rgba(0,0,0,.28)'; cx.lineWidth = 1.5;
+  for (let i = 0; i < 48; i++) {
+    const a = BELT.rot * 1 + i * (Math.PI * 2 / 48);
+    cx.beginPath();
+    cx.moveTo(CX + Math.cos(a) * (BELT_IN + 2), CY + Math.sin(a) * (BELT_IN + 2));
+    cx.lineTo(CX + Math.cos(a) * (BELT_OUT - 2), CY + Math.sin(a) * (BELT_OUT - 2));
+    cx.stroke();
+  }
+  cx.restore();
+}
+
+const BELT_CLR = {
+  maru: ['#f6f8fc', '#b9c3d4', '#8f9bb0'],
+  geta: ['#ffd9d3', '#d3796a', '#b4645a'],
+  funa: ['#ffe9ae', '#cb9c37', '#a97f22'],
+};
+function drawBeltPlates(now) {
+  BELT.list.forEach((c, i) => {
+    const a = beltAngle(i);
+    const x = CX + Math.cos(a) * BELT_R, y = CY + Math.sin(a) * BELT_R;
+    const on = BELT.sel === i;
+    const clr = BELT_CLR[c.kind] || BELT_CLR.maru;
+    cx.save();
+    cx.translate(x, y);
+    // 盤子（碟身＋碟緣），微微傾斜跟著帶子走
+    cx.rotate(a + Math.PI / 2);
+    cx.beginPath(); cx.ellipse(1, 3, BELT_PR, BELT_PR * .82, 0, 0, 6.28);
+    cx.fillStyle = 'rgba(0,0,0,.45)'; cx.fill();
+    const pg = cx.createLinearGradient(0, -BELT_PR, 0, BELT_PR);
+    pg.addColorStop(0, clr[0]); pg.addColorStop(1, clr[1]);
+    cx.beginPath(); cx.ellipse(0, 0, BELT_PR, BELT_PR * .82, 0, 0, 6.28);
+    cx.fillStyle = pg; cx.fill();
+    cx.strokeStyle = on ? '#6ee0a4' : clr[2]; cx.lineWidth = on ? 3 : 1.6; cx.stroke();
+    if (on) { cx.shadowColor = 'rgba(110,224,164,.9)'; cx.shadowBlur = 14; cx.stroke(); cx.shadowBlur = 0; }
+    cx.restore();
+    // 盤上的壽司：永遠正立，看得清楚
+    cx.save();
+    cx.translate(x, y);
+    const k = c.types.length;
+    const isz = k >= 5 ? 12 : k >= 3 ? 15 : 20;
+    const cols = k >= 5 ? 3 : k;
+    const rows = Math.ceil(k / cols);
+    c.types.forEach((t, j) => {
+      const r0 = Math.floor(j / cols), c0 = j % cols;
+      const cnt = Math.min(cols, k - r0 * cols);
+      const px = (c0 - (cnt - 1) / 2) * (isz + 1);
+      const py = (r0 - (rows - 1) / 2) * (isz + 1) - 3;
+      cx.save();
+      cx.translate(px, py); cx.scale(isz / 104, isz / 104);
+      drawSushi(cx, t);                 // 直接畫向量，不走 dataURL（比較清楚也不用等載入）
+      cx.restore();
+    });
+    // 盤型 ＋ 這盤的 BINGO得分
+    cx.font = 'bold 9px "Noto Sans TC", sans-serif';
+    cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillStyle = 'rgba(10,15,30,.78)';
+    const lb = `${KIND_NAME[c.kind]} ${fmt(c.per || 0)}`;
+    const w = cx.measureText(lb).width + 8;
+    roundRect(cx, -w / 2, BELT_PR * .82 - 12, w, 11, 5); cx.fill();
+    cx.fillStyle = '#fff';
+    cx.fillText(lb, 0, BELT_PR * .82 - 6.5);
+    cx.restore();
+  });
+}
+
+/* 點迴轉帶上的盤子 */
+cv.onclick = e => {
+  if (S.phase !== 'BET' || !BELT.list.length) return;
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left) * (GW / r.width);
+  const y = (e.clientY - r.top) * (GH / r.height);
+  let best = -1, bestD = 1e9;
+  BELT.list.forEach((c, i) => {
+    const a = beltAngle(i);
+    const d = Math.hypot(CX + Math.cos(a) * BELT_R - x, CY + Math.sin(a) * BELT_R - y);
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  if (best >= 0 && bestD <= BELT_PR + 6) pickBelt(best);
+};
 
 /* ============ UI 更新 ============ */
 const PHASE_NAME = { BET: '押注中', DRAW: '抽球中', FREE: 'FREE CHOICE', SP: '老闆SP', FISH: '漁', SETTLE: '結算完成' };
@@ -2074,6 +2230,7 @@ function refreshAll() {
   $('rtpNow').textContent = S.totalBet ? (S.totalWin / S.totalBet * 100).toFixed(1) + '%' : '—';
   $('stateName').textContent = `${STATE_NAME[T.fish.stateMode]}（撈魚 ×${stateMul().toFixed(2)}）`;
   renderStamps();
+  refreshBeltPay();
   updateCd();
 
   // chips
@@ -2364,7 +2521,7 @@ window.__TEST__ = {
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
   SP_ITEMS, STATE_NAME, stateMul, catchChance, betLeft, startBetPhase, endFree, stepWheel,
   autoFreePick, HIST, missingOf, addPlates, renderSeat, fitScreen, payRange, startFx,
-  refreshAll, KIND_SIZE, STAKE, gainStamp, renderStamps, GW, GH, HD,
+  refreshAll, KIND_SIZE, STAKE, gainStamp, renderStamps, BELT, makeBelt, pickBelt, beltAngle, refreshBeltPay, GW, GH, HD,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
   forceSP(item) {
     const free = []; for (let i = 0; i < 16; i++) if (!S.balls.includes(i)) free.push(i);
