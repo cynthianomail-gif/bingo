@@ -5,137 +5,290 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>迴轉壽司賓果 demo</title>
 <style>
+  /* ===== 設計系統：和風街機（靛藍 × 檜木 × 金／朱紅） ===== */
+  :root {
+    --ink:#0a0f1e; --panel:#161f38; --panel-2:#1b2643; --panel-3:#0e1526;
+    --line:#2b3a60; --line-soft:#213050;
+    --gold:#e9b53f; --gold-2:#f8dc9a; --gold-dim:#8a6a20;
+    --red:#e0452c; --jade:#37a56a; --jade-2:#6ee0a4; --sky:#7fc7f5; --plum:#c084fc;
+    --txt:#e9eef8; --muted:#93a2c0; --muted-2:#6e7ea3;
+    --wood-1:#3d2a1b; --wood-2:#573b25; --wood-3:#26170e;
+    --shadow:0 12px 34px rgba(0,0,0,.5);
+    --r:16px;
+  }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: #0b1120; color: #e2e8f0;
-    font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    margin: 0; color: var(--txt); min-height: 100vh;
+    font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+    background:
+      radial-gradient(1100px 560px at 12% -12%, #1e2c52 0%, transparent 62%),
+      radial-gradient(900px 480px at 102% -4%, #2a1f3d 0%, transparent 58%),
+      var(--ink);
   }
-  #app { display: grid; grid-template-columns: 600px 1fr; gap: 14px; padding: 14px; max-width: 1500px; }
-  .card { background: #131c31; border: 1px solid #24304d; border-radius: 10px; padding: 12px; }
-  h1 { font-size: 18px; margin: 0 0 4px; color: #fbbf24; }
-  h2 { font-size: 14px; margin: 0 0 8px; color: #7dd3fc; border-bottom: 1px solid #24304d; padding-bottom: 5px; }
-  .sub { font-size: 11px; color: #64748b; margin-bottom: 10px; line-height: 1.6; }
-  canvas { display: block; background: #0d1526; border-radius: 8px; }
+  /* 青海波底紋 */
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .045;
+    background-image: radial-gradient(circle at 50% 100%, transparent 9.5px, #a8d4ff 10.5px, transparent 11.5px);
+    background-size: 36px 18px;
+  }
+  #app {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: 620px minmax(430px, 1fr);
+    gap: 16px; padding: 16px; max-width: 1560px;
+  }
+  #app > * { align-self: start; }
+  @media (max-width: 1120px) { #app { grid-template-columns: 1fr; } }
 
-  /* 狀態列 */
-  #hud { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-  .stat { background: #0d1526; border: 1px solid #24304d; border-radius: 6px; padding: 5px 10px; font-size: 13px; }
-  .stat b { color: #fbbf24; font-size: 16px; }
-  .stat.win b { color: #4ade80; }
+  .card {
+    background: linear-gradient(180deg, var(--panel), var(--panel-3));
+    border: 1px solid var(--line); border-radius: var(--r); padding: 15px 17px;
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .card + .card { margin-top: 16px; }
 
-  /* 種類 chip */
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+  /* ---- 招牌（暖木頭 + 金字） ---- */
+  .masthead {
+    position: relative; overflow: hidden; margin: -15px -17px 14px; padding: 15px 18px 13px;
+    border-radius: var(--r) var(--r) 0 0;
+    background: linear-gradient(180deg, var(--wood-2), var(--wood-1) 58%, var(--wood-3));
+    border-bottom: 1px solid #6b4a2d;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.14);
+  }
+  .masthead::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .18;
+    background: repeating-linear-gradient(90deg, rgba(0,0,0,.4) 0 2px, transparent 2px 10px);
+  }
+  .mh-row { position: relative; display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  .mh-title {
+    font-size: 27px; font-weight: 900; letter-spacing: 2px; line-height: 1;
+    background: linear-gradient(180deg, #fff6da, var(--gold) 55%, #a8761f);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 2px 0 rgba(0,0,0,.45));
+  }
+  .mh-sub { font-size: 11.5px; color: #d6b98f; letter-spacing: .5px; padding-bottom: 2px; }
+  .mh-note { position: relative; margin-top: 8px; font-size: 11px; color: #b99b73; line-height: 1.7; }
+  h1 { margin: 0; }
+  h2 {
+    display: flex; align-items: center; gap: 9px; margin: 0 0 12px; padding-bottom: 9px;
+    font-size: 14.5px; font-weight: 700; letter-spacing: .6px; color: #dde7ff;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  h2::before {
+    content: ''; width: 4px; height: 17px; border-radius: 3px;
+    background: linear-gradient(180deg, var(--gold-2), var(--gold-dim));
+  }
+  .sub { font-size: 11.5px; color: var(--muted-2); margin-bottom: 11px; line-height: 1.75; }
+  canvas {
+    display: block; border-radius: 14px; background: #080d19;
+    border: 1px solid var(--line); box-shadow: inset 0 0 46px rgba(0,0,0,.65);
+  }
+
+  /* ---- 狀態燈 ---- */
+  #hud { position: relative; display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 14px; }
+  .stat {
+    min-width: 96px; padding: 7px 13px; border-radius: 12px;
+    background: linear-gradient(180deg, #0e1729, #080e1c);
+    border: 1px solid var(--line); box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .stat span { font-size: 10.5px; letter-spacing: 1px; color: var(--muted-2); }
+  .stat b {
+    font-size: 21px; font-weight: 800; line-height: 1.15; color: var(--gold-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .stat.win b { color: var(--jade-2); }
+  .stat.now b { color: var(--sky); }
+
+  /* ---- 壽司 chip ---- */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
   .chip {
-    display: flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 20px;
-    border: 2px solid #334155; background: #0d1526; cursor: pointer; font-size: 13px; user-select: none;
+    display: flex; align-items: center; gap: 7px; padding: 6px 12px 6px 7px; border-radius: 999px;
+    border: 1px solid var(--line); background: linear-gradient(180deg, #1c2742, #121a2e);
+    cursor: pointer; font-size: 13px; user-select: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+    transition: transform .1s, border-color .15s, box-shadow .15s;
   }
-  .chip:hover { border-color: #7dd3fc; }
-  .chip.sel { border-color: #fbbf24; background: #3b2f08; }
-  .chip.hit { box-shadow: 0 0 0 2px #4ade80 inset; }
-  .chip .pk { font-size: 10px; color: #94a3b8; }
-  .chip .mul { font-size: 10px; color: #f472b6; }
+  .chip:hover { transform: translateY(-2px); border-color: var(--sky); }
+  .chip.sel {
+    border-color: var(--gold); background: linear-gradient(180deg, #3c2d0c, #241a06);
+    box-shadow: inset 0 0 0 1px var(--gold), 0 0 18px rgba(233,181,63,.28);
+  }
+  .chip.hit { box-shadow: inset 0 0 0 2px var(--jade), 0 0 14px rgba(55,165,106,.3); }
+  .chip .pk { font-size: 10px; color: var(--muted); background: rgba(255,255,255,.07); padding: 1px 7px; border-radius: 7px; }
+  .chip .mul { font-size: 11.5px; font-weight: 800; color: #ffa9d0; font-variant-numeric: tabular-nums; }
 
-  /* 押注區 */
-  .tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+  /* ---- 盤型分頁 ---- */
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 14px 0 12px; }
   .tab {
-    flex: 1; padding: 7px; text-align: center; border-radius: 6px; cursor: pointer; font-size: 13px;
-    background: #0d1526; border: 1px solid #334155;
+    position: relative; padding: 10px 8px; text-align: center; border-radius: 13px; cursor: pointer;
+    font-size: 14.5px; font-weight: 800; color: #d3ddf3;
+    background: linear-gradient(180deg, #1a2440, #101728); border: 1px solid var(--line);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+    transition: transform .1s, border-color .15s;
   }
-  .tab.active { background: #172554; border-color: #60a5fa; color: #93c5fd; }
-  .tab.dis { opacity: .4; cursor: not-allowed; }
-  .combo { display: flex; flex-wrap: wrap; gap: 6px; }
-  .combo button {
-    background: #0d1526; border: 1px solid #334155; color: #e2e8f0; border-radius: 6px;
-    padding: 6px 8px; cursor: pointer; font-size: 13px;
+  .tab:hover { transform: translateY(-1px); }
+  .tab i { display: block; font-size: 11px; font-weight: 400; font-style: normal; color: var(--muted); margin-top: 3px; }
+  .tab.active { border-color: var(--gold); color: #fff; background: linear-gradient(180deg, #2c3757, #161e35); }
+  .tab.active::after {
+    content: ''; position: absolute; left: 20%; right: 20%; bottom: -1px; height: 3px; border-radius: 3px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
   }
-  .combo button:hover { border-color: #fbbf24; }
-  .btn {
-    background: #1e293b; border: 1px solid #475569; color: #e2e8f0; border-radius: 6px;
-    padding: 7px 12px; cursor: pointer; font-size: 13px;
+  .tab.dis { opacity: .42; cursor: not-allowed; transform: none; }
+
+  /* ---- 按鈕 ---- */
+  .combo { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn, .combo button {
+    appearance: none; font: inherit; font-size: 13px; color: var(--txt); cursor: pointer;
+    padding: 8px 14px; border-radius: 11px; border: 1px solid var(--line);
+    background: linear-gradient(180deg, #23314f, #161f36);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 0 rgba(0,0,0,.4);
+    transition: transform .07s, border-color .15s, color .15s;
   }
-  .btn:hover { border-color: #7dd3fc; color: #7dd3fc; }
-  .btn.pri { background: #166534; border-color: #22c55e; color: #dcfce7; font-weight: bold; }
-  .btn.pri:hover { background: #15803d; }
-  .btn:disabled { opacity: .35; cursor: not-allowed; }
-  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .btn:hover, .combo button:hover { border-color: var(--gold); color: #fff; }
+  .btn:active, .combo button:active { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+  .btn.pri {
+    font-weight: 800; color: #eafff3; border-color: #4ec98a;
+    background: linear-gradient(180deg, #33a86b, #1b6b43);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 3px 0 #10402a;
+  }
+  .btn.on { border-color: var(--gold); color: var(--gold-2); background: linear-gradient(180deg, #4b3714, #2a1f0a); }
+  .btn:disabled { opacity: .38; cursor: not-allowed; transform: none; }
+  .row { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; margin-top: 11px; }
 
-  /* 盤清單 */
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th, td { padding: 4px 6px; border-bottom: 1px solid #1e293b; text-align: left; }
-  th { color: #94a3b8; font-weight: normal; }
-  .free { color: #f472b6; font-weight: bold; }
-  .won { color: #4ade80; }
-  .lost { color: #64748b; }
+  /* ---- 盤清單 ---- */
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+  th {
+    padding: 8px; text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: 1px;
+    color: var(--muted-2); border-bottom: 1px solid var(--line);
+  }
+  td { padding: 9px 8px; border-bottom: 1px solid rgba(255,255,255,.055); vertical-align: middle; }
+  td:nth-child(n+3) { font-variant-numeric: tabular-nums; }
+  tbody tr:nth-child(odd) { background: rgba(255,255,255,.022); }
+  tbody tr:hover { background: rgba(127,199,245,.07); }
+  .free { color: #ff9ed2; font-weight: 800; font-size: 10.5px; letter-spacing: .5px; }
+  .won { color: var(--jade-2); font-weight: 800; }
+  .lost { color: var(--muted-2); }
 
-  /* log */
-  #log { height: 150px; overflow-y: auto; font-size: 12px; line-height: 1.7; font-family: Consolas, monospace; }
-  #log div { border-bottom: 1px solid #16203a; padding: 1px 0; }
-  .lg-w { color: #4ade80; } .lg-i { color: #93c5fd; } .lg-b { color: #fbbf24; } .lg-d { color: #64748b; }
+  /* ---- 紀錄 ---- */
+  #log { height: 176px; overflow-y: auto; font-size: 12px; line-height: 1.6; padding-right: 4px; }
+  #log div { padding: 4px 9px; margin-bottom: 3px; border-left: 2px solid transparent; border-radius: 0 8px 8px 0; }
+  .lg-w { color: #a6f3c6; border-left-color: var(--jade); background: rgba(55,165,106,.1); }
+  .lg-i { color: #d3e2fb; border-left-color: #37507d; }
+  .lg-b { color: #ffdf9e; border-left-color: var(--gold); background: rgba(233,181,63,.1); }
+  .lg-d { color: var(--muted-2); }
+  #log::-webkit-scrollbar { width: 9px; }
+  #log::-webkit-scrollbar-track { background: rgba(255,255,255,.03); border-radius: 9px; }
+  #log::-webkit-scrollbar-thumb { background: #2f3f66; border-radius: 9px; }
+  #log::-webkit-scrollbar-thumb:hover { background: #3d5182; }
 
-  /* 調參面板 */
+  /* ---- 事件面板（FREE / 老闆SP / 漁） ---- */
+  .evt {
+    display: none; margin-top: 12px; padding: 13px 15px; border-radius: 14px;
+    border: 1px solid var(--plum);
+    background: linear-gradient(180deg, rgba(168,85,247,.16), rgba(88,28,135,.22));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .evt h3 { margin: 0 0 7px; font-size: 15px; font-weight: 800; letter-spacing: .5px; color: #f0c8ff; }
+  .evt.gold { border-color: var(--gold); background: linear-gradient(180deg, rgba(233,181,63,.15), rgba(120,80,10,.2)); }
+  .evt.gold h3 { color: var(--gold-2); }
+  .evt.sea { border-color: #2b9fd8; background: linear-gradient(180deg, rgba(43,159,216,.15), rgba(8,48,74,.3)); }
+  .evt.sea h3 { color: #a5e2ff; }
+  .fc-plate { border-top: 1px solid rgba(255,255,255,.12); padding: 8px 0 4px; font-size: 12.5px; }
+  .fc-plate button { margin: 5px 5px 0 0; }
+  .tag {
+    display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 8px; margin-left: 5px;
+    background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.18); color: #e4ecff;
+  }
+
+  /* ---- 中獎快報 ---- */
+  #toast {
+    position: fixed; left: 50%; top: 15%; z-index: 80; pointer-events: none;
+    transform: translate(-50%, -18px); opacity: 0; transition: opacity .22s, transform .22s;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast-in {
+    padding: 15px 34px; border-radius: 18px; text-align: center;
+    font-size: 30px; font-weight: 900; letter-spacing: 2px; color: var(--gold-2);
+    background: linear-gradient(180deg, #3d2c08, #1c1304);
+    border: 1px solid var(--gold);
+    box-shadow: 0 16px 48px rgba(0,0,0,.65), 0 0 46px rgba(233,181,63,.3), inset 0 1px 0 rgba(255,255,255,.2);
+  }
+  .toast-in small { display: block; margin-top: 5px; font-size: 13.5px; font-weight: 500; color: #ffe6b3; letter-spacing: 0; }
+
+  /* ---- 調參面板 ---- */
   #tune {
-    position: fixed; right: 0; top: 0; width: 300px; height: 100vh; background: #0f172a;
-    border-left: 1px solid #24304d; padding: 10px; overflow-y: auto; z-index: 50;
-    transform: translateX(300px); transition: transform .2s;
+    position: fixed; right: 0; top: 0; width: 318px; height: 100vh; z-index: 60;
+    padding: 14px; overflow-y: auto; transform: translateX(318px); transition: transform .22s;
+    background: linear-gradient(180deg, #131c33, #0a1120);
+    border-left: 1px solid var(--line); box-shadow: -16px 0 40px rgba(0,0,0,.5);
   }
   #tune.open { transform: none; }
-  #tuneBtn { position: fixed; right: 10px; top: 10px; z-index: 51; }
-  .tune-tab { padding: 5px 8px; font-size: 12px; background: #0d1526; border: 1px solid #334155; border-radius: 5px; cursor: pointer; }
-  .tune-tab.active { background: #0f3460; border-color: #38bdf8; color: #38bdf8; }
-  .tune-group { margin: 10px 0 4px; font-size: 12px; color: #fbbf24; border-bottom: 1px solid #24304d; }
-  .tune-row { display: flex; align-items: center; gap: 6px; margin: 5px 0; }
-  .tune-row label { flex: 0 0 118px; font-size: 11px; color: #cbd5e1; }
-  .tune-row input[type=range] { flex: 1; min-width: 0; accent-color: #38bdf8; }
-  .tune-row input[type=number] { width: 56px; background: #0d1526; border: 1px solid #334155; color: #e2e8f0; border-radius: 4px; padding: 2px 4px; font-size: 11px; }
-  .hint { font-size: 11px; color: #64748b; line-height: 1.6; margin: 6px 0; }
-
-  /* FREE CHOICE 覆蓋層 */
-  #freeBox { display: none; margin-top: 8px; background: #3b0764; border: 1px solid #a855f7; border-radius: 8px; padding: 10px; }
-  #freeBox h3 { margin: 0 0 6px; font-size: 14px; color: #f0abfc; }
-  .fc-plate { border-top: 1px solid #6b21a8; padding: 6px 0; font-size: 12px; }
-  .fc-plate button { margin: 3px 3px 0 0; }
-  .tag { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 8px; background: #1e293b; border: 1px solid #475569; margin-left: 4px; }
+  #tuneBtn { position: fixed; right: 12px; top: 12px; z-index: 61; }
+  .tune-tab {
+    padding: 6px 9px; font-size: 12px; cursor: pointer; border-radius: 9px;
+    background: #0e1729; border: 1px solid var(--line); color: #c3d0ea;
+  }
+  .tune-tab.active { background: #17304f; border-color: var(--sky); color: var(--sky); }
+  .tune-group {
+    margin: 14px 0 6px; padding-bottom: 5px; font-size: 12px; font-weight: 700; letter-spacing: .5px;
+    color: var(--gold-2); border-bottom: 1px solid var(--line-soft);
+  }
+  .tune-row { display: flex; align-items: center; gap: 7px; margin: 7px 0; }
+  .tune-row label { flex: 0 0 116px; font-size: 11px; color: #c8d4ec; }
+  .tune-row input[type=range] { flex: 1; min-width: 0; accent-color: var(--gold); }
+  .tune-row input[type=number] {
+    width: 58px; padding: 3px 5px; font-size: 11px; border-radius: 6px;
+    background: #0b1120; border: 1px solid var(--line); color: var(--txt);
+    font-variant-numeric: tabular-nums;
+  }
+  .hint { font-size: 11px; color: var(--muted-2); line-height: 1.75; margin: 8px 0; }
 </style>
 </head>
 <body>
 
 <button class="btn" id="tuneBtn">⚙️ 調參</button>
+<div id="toast"><div class="toast-in" id="toastIn"></div></div>
 
 <div id="app">
   <!-- 左：輪盤 -->
   <div class="card">
-    <h1>迴轉壽司賓果 <span style="font-size:12px;color:#64748b">demo — 復刻 ギョ～転！ガッポリすし ～あっぱれ!!～</span></h1>
-    <div class="sub">16 格輪盤（15 格壽司 ＋ 1 格老闆SP）／抽 5 顆球，逆時針落格／押注單位是「壽司種類」，同種佔多格</div>
+    <div class="masthead">
+      <div class="mh-row">
+        <h1 class="mh-title">迴轉壽司賓果</h1>
+        <div class="mh-sub">demo ／ 復刻 ギョ～転！ガッポリすし ～あっぱれ!!～</div>
+      </div>
+      <div class="mh-note">16 格輪盤（15 格壽司 ＋ 1 格老闆SP）　抽 5 顆球逆時針落格　押注單位是「壽司種類」，同種佔多格</div>
+    </div>
     <div id="hud">
-      <div class="stat">持有 <b id="balance">0</b> 枚</div>
-      <div class="stat">本局押注 <b id="betSum">0</b></div>
-      <div class="stat win">本局贏分 <b id="winSum">0</b></div>
-      <div class="stat">第 <b id="roundNo">1</b> 局</div>
+      <div class="stat"><span>持有</span><b id="balance">0</b></div>
+      <div class="stat"><span>本局押注</span><b id="betSum">0</b></div>
+      <div class="stat win"><span>本局贏分</span><b id="winSum">0</b></div>
+      <div class="stat now"><span>局數</span><b id="roundNo">1</b></div>
     </div>
     <canvas id="wheel" width="574" height="574"></canvas>
-    <div id="freeBox">
+    <div id="freeBox" class="evt">
       <h3>✨ FREE CHOICE — 可指定 1 種未命中的壽司視為命中</h3>
       <div id="fcList"></div>
       <div class="row"><button class="btn pri" id="fcDone">繼續抽剩下 2 球 ▶</button></div>
     </div>
 
     <!-- 老闆SP 說明條 -->
-    <div id="spBox" style="display:none;margin-top:8px;background:#3b0764;border:1px solid #a855f7;border-radius:8px;padding:10px">
-      <h3 style="margin:0 0 4px;font-size:14px;color:#f0abfc">🎴 老闆SP — 追加第 6 顆 EX 球</h3>
-      <div class="hint" id="spHint">沒有球的格子重新配置成特別輪盤，EX 球決定獎項。</div>
+    <div id="spBox" class="evt gold">
+      <h3>🎴 老闆SP — 追加第 6 顆 EX 球</h3>
+      <div class="hint" id="spHint" style="margin:0">沒有球的格子重新配置成特別輪盤，EX 球決定獎項。</div>
     </div>
 
     <!-- 漁 撈魚小遊戲 -->
-    <div id="fishBox" style="display:none;margin-top:8px">
-      <div class="row" style="margin:0 0 6px">
-        <b id="fishTitle" style="color:#7dd3fc">🎣 漁チャレンジ</b>
-        <span class="stat">剩餘 <b id="fishTime">30</b> 秒</span>
+    <div id="fishBox" class="evt sea">
+      <div class="row" style="margin:0 0 10px">
+        <h3 id="fishTitle" style="margin:0">🎣 漁チャレンジ</h3>
+        <div class="stat" style="min-width:74px"><span>剩餘秒數</span><b id="fishTime">30</b></div>
         <button class="btn" id="wNet">🕸️ 網（<span id="cNet">10</span> 枚）</button>
-        <button class="btn" id="wGrab">🤏 單抓（<span id="cGrab">2</span> 枚）</button>
+        <button class="btn on" id="wGrab">🤏 單抓（<span id="cGrab">2</span> 枚）</button>
         <button class="btn" id="fishEnd">結束漁</button>
       </div>
       <canvas id="fish" width="574" height="380"></canvas>
-      <div class="hint" id="fishHint">選武器後點畫面撈魚。撈到自己盤上還沒完成的壽司 → 補齊即 BINGO；撈到沒押的壽司 → 得該壽司的贏分。</div>
+      <div class="hint" id="fishHint" style="margin-bottom:0">選武器後點畫面撈魚。撈到自己盤上還沒完成的壽司 → 補齊即 BINGO；撈到沒押的壽司 → 得該壽司的贏分。</div>
     </div>
   </div>
 
@@ -147,9 +300,9 @@
       <div class="chips" id="chips"></div>
       <div id="shunArea"></div>
       <div class="tabs">
-        <div class="tab active" data-kind="maru">圓盤 丸皿<br><span style="font-size:11px;color:#94a3b8">押 3／選 1~2 種</span></div>
-        <div class="tab" data-kind="geta">三貫 ゲタ盛<br><span style="font-size:11px;color:#94a3b8">押 5／選 3 種</span></div>
-        <div class="tab" data-kind="funa">五貫 舟盛<br><span style="font-size:11px;color:#94a3b8">押 10／選 5 種</span></div>
+        <div class="tab active" data-kind="maru">圓盤 丸皿<i>押 3 枚／選 1~2 種</i></div>
+        <div class="tab" data-kind="geta">三貫 ゲタ盛<i>押 5 枚／選 3 種</i></div>
+        <div class="tab" data-kind="funa">五貫 舟盛<i>押 10 枚／選 5 種</i></div>
       </div>
       <div id="betArea"></div>
       <div class="row">
@@ -567,6 +720,72 @@ $('fcDone').onclick = () => {
 /* ============ 結算 ============ */
 function isHit(p, t) { return S.hitTypes.has(t) || p.freeUsed === t; }
 
+/* ============ 演出：金幣噴發、盤面發光、中獎快報 ============ */
+const FX = { coins: [], glow: 0, glowT: 0, spReveal: 0 };
+
+function burstCoins(n, cxp, cyp) {
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4;
+    const sp = 3.2 + Math.random() * 5.2;
+    FX.coins.push({
+      x: cxp, y: cyp, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2,
+      r: 7 + Math.random() * 6, rot: Math.random() * 6.28, vr: (Math.random() - .5) * .35, life: 1,
+    });
+  }
+}
+function celebrate(amount, title) {
+  FX.glow = 1; FX.glowT = performance.now();
+  burstCoins(Math.min(60, 16 + Math.round(amount / 24)), CX, CY + 40);
+  toast(title || 'BINGO！', `+${amount} 枚`);
+}
+function toast(big, small) {
+  const el = $('toast');
+  $('toastIn').innerHTML = big + (small ? `<small>${small}</small>` : '');
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), 1900);
+}
+function stepFX(now) {
+  FX.coins.forEach(c => {
+    c.vy += 0.32; c.x += c.vx; c.y += c.vy; c.rot += c.vr;
+    if (c.y > CY + 300) c.life = 0;
+  });
+  FX.coins = FX.coins.filter(c => c.life > 0);
+  if (FX.glow) FX.glow = Math.max(0, 1 - (now - FX.glowT) / 1100);
+}
+function drawFX(now) {
+  // 盤面發光
+  if (FX.glow > 0) {
+    const g = cx.createRadialGradient(CX, CY, R_IN * .6, CX, CY, R_OUT + 30);
+    g.addColorStop(0, `rgba(233,181,63,0)`);
+    g.addColorStop(.72, `rgba(233,181,63,${.34 * FX.glow})`);
+    g.addColorStop(1, `rgba(233,181,63,0)`);
+    cx.fillStyle = g;
+    cx.beginPath(); cx.arc(CX, CY, R_OUT + 30, 0, 6.28); cx.fill();
+    cx.strokeStyle = `rgba(248,220,154,${.85 * FX.glow})`;
+    cx.lineWidth = 3 + 5 * FX.glow;
+    cx.beginPath(); cx.arc(CX, CY, R_OUT + 8, 0, 6.28); cx.stroke();
+  }
+  // 金幣
+  FX.coins.forEach(c => {
+    cx.save();
+    cx.translate(c.x, c.y); cx.rotate(c.rot);
+    const w = Math.abs(Math.cos(c.rot)) * c.r + 2;   // 旋轉時的厚薄感
+    const g = cx.createLinearGradient(-w, -c.r, w, c.r);
+    g.addColorStop(0, '#fff4cd'); g.addColorStop(.5, '#e9b53f'); g.addColorStop(1, '#9a6f14');
+    cx.beginPath(); cx.ellipse(0, 0, w, c.r, 0, 0, 6.28);
+    cx.fillStyle = g; cx.fill();
+    cx.strokeStyle = '#7c5510'; cx.lineWidth = 1.4; cx.stroke();
+    if (w > c.r * .55) {
+      cx.fillStyle = 'rgba(124,85,16,.75)';
+      cx.font = `bold ${Math.round(c.r)}px sans-serif`;
+      cx.textAlign = 'center'; cx.textBaseline = 'middle';
+      cx.fillText('壽', 0, 1);
+    }
+    cx.restore();
+  });
+}
+
 function addWin(n) { S.winSum += n; S.balance += n; }
 
 function payIfComplete(p, tag) {
@@ -575,6 +794,7 @@ function payIfComplete(p, tag) {
   const w = Math.min(p.per * p.count, T.econ.plateCap);
   p.result = w; addWin(w);
   log(`🎉 BINGO${tag || ''} ${KIND_NAME[p.kind]}（${p.types.map(t => SUSHI[t].name).join('＋')}）×${p.count} 盤 → ${w} 枚`, 'w');
+  celebrate(w, w >= 500 ? 'BIG WIN！' : 'BINGO！');
   return w;
 }
 
@@ -638,6 +858,8 @@ function startSP() {
   shuffle(items);
   S.spItems = {}; free.forEach((idx, i) => S.spItems[idx] = items[i]);
   S.spFree = free;
+  FX.spReveal = performance.now();     // 特別輪盤逐格翻開的轉場
+  toast('老闆SP', '追加第 6 顆 EX 球');
   $('spBox').style.display = 'block';
   $('spHint').innerHTML = `沒有球的 <b>${free.length}</b> 格重新配置成特別輪盤：` +
     free.map(i => SP_ITEMS[S.spItems[i]].emoji + SP_ITEMS[S.spItems[i]].label).join('　') +
@@ -668,13 +890,20 @@ function resolveSP(idx) {
   if (S.phase !== 'SP') return;
   const it = S.spItems[idx];
   log(`EX 球 → ${SP_ITEMS[it].emoji} ${SP_ITEMS[it].label}`, 'b');
-  if (it === 'purin') { addWin(T.sp.purinWin); log(`🍮 布丁 +${T.sp.purinWin} 枚`, 'w'); finishRound(); return; }
-  if (it === 'jp')    { addWin(T.sp.jpWin);    log(`💎 JP +${T.sp.jpWin} 枚`, 'w');    finishRound(); return; }
+  if (it === 'purin') {
+    addWin(T.sp.purinWin); log(`🍮 布丁 +${T.sp.purinWin} 枚`, 'w');
+    celebrate(T.sp.purinWin, '🍮 布丁'); finishRound(); return;
+  }
+  if (it === 'jp') {
+    addWin(T.sp.jpWin); log(`💎 JP +${T.sp.jpWin} 枚`, 'w');
+    celebrate(T.sp.jpWin, '💎 JACKPOT！'); finishRound(); return;
+  }
   if (it === 'shun') {
     const p = S.plates.find(x => x.kind === 'shun');
     const w = { 60: T.sp.shun60, 120: T.sp.shun120, 240: T.sp.shun240 }[p.stake] || T.sp.shun60;
     p.result = w; addWin(w);
     log(`🐟 特殊壽司 ${SUSHI[p.types[0]].name}（押 ${p.stake}）命中 → +${w} 枚`, 'w');
+    celebrate(w, '🐟 旬ネタ命中！');
     finishRound(); return;
   }
   if (it === 'gag') { log('😑 一發搞笑 — 空獎', 'd'); finishRound(); return; }
@@ -1089,20 +1318,21 @@ function iconTag(type, size) {
   return `<img src="${sushiIcon(type, size || 26)}" width="${size || 26}" height="${size || 26}" style="vertical-align:middle;filter:drop-shadow(0 1px 1px rgba(0,0,0,.5))">`;
 }
 
-/* 魚：身體 + 會擺動的尾巴 + 背上的ネタ */
+/* 魚：身體會波浪擺動 + 尾巴甩動 + 轉向 + 背上的ネタ */
 function drawFishShape(c, x, y, r, dir, type, t, opt) {
   opt = opt || {};
   const a = ART[type] || ART[0];
-  const wob = Math.sin(t / 130 + x * 0.05) * 0.35;
+  const ph = t / 125 + x * 0.05;
+  const wob = Math.sin(ph) * 0.35;
   c.save();
   c.translate(x, y);
   c.scale(dir, 1);
-  // 尾巴
-  c.save(); c.rotate(wob * 0.5);
+  // 尾巴（相位落後身體，看起來像在推水）
+  c.save(); c.rotate(Math.sin(ph - 0.9) * 0.42);
   c.beginPath();
   c.moveTo(-r * 1.15, 0);
   c.lineTo(-r * 2.05, -r * 0.72);
-  c.quadraticCurveTo(-r * 1.55, 0, -r * 2.05, r * 0.72);
+  c.quadraticCurveTo(-r * 1.5, 0, -r * 2.05, r * 0.72);
   c.closePath();
   c.fillStyle = opt.gold ? '#f6c141' : a.edge; c.fill();
   c.restore();
@@ -1112,9 +1342,13 @@ function drawFishShape(c, x, y, r, dir, type, t, opt) {
   c.quadraticCurveTo(r * 0.1, -r * 1.55, r * 0.55, -r * 0.7);
   c.closePath();
   c.fillStyle = opt.gold ? '#e0a92c' : a.edge; c.fill();
-  // 身體
+  // 身體：用兩條貝茲曲線組出會波動的魚身，而不是固定的橢圓
+  const bend = Math.sin(ph) * r * 0.22;
   c.beginPath();
-  c.ellipse(0, 0, r * 1.5, r * 0.92, 0, 0, 6.28);
+  c.moveTo(r * 1.5, 0);
+  c.bezierCurveTo(r * 0.7, -r * 0.95, -r * 0.4, -r * 0.9 + bend, -r * 1.15, bend * 1.4);
+  c.bezierCurveTo(-r * 0.4, r * 0.9 + bend, r * 0.7, r * 0.95, r * 1.5, 0);
+  c.closePath();
   const g = c.createLinearGradient(0, -r, 0, r);
   if (opt.gold) { g.addColorStop(0, '#ffe9a3'); g.addColorStop(.55, '#f6c141'); g.addColorStop(1, '#c98c12'); }
   else { g.addColorStop(0, '#dbe9f4'); g.addColorStop(.5, a.top); g.addColorStop(1, a.edge); }
@@ -1166,7 +1400,13 @@ function draw() {
   for (let i = 0; i < 16; i++) {
     const a0 = -Math.PI / 2 + i * seg, a1 = a0 + seg;
     const t = S.pockets[i];
-    const spItem = S.spItems ? S.spItems[i] : null;   // 特別輪盤模式
+    let spItem = S.spItems ? S.spItems[i] : null;      // 特別輪盤模式
+    let revealing = false;
+    if (spItem && FX.spReveal) {                      // 逐格翻開的轉場
+      const at = FX.spReveal + 80 + Math.max(0, S.spFree.indexOf(i)) * 80;
+      if (now < at) spItem = null;
+      else if (now < at + 220) revealing = true;
+    }
     const isSP = t === SP_POCKET;
     const hit = S.balls.includes(i);
 
@@ -1184,41 +1424,49 @@ function draw() {
       gm.addColorStop(0, '#c084fc'); gm.addColorStop(1, '#4c1d95');
     } else {
       const base = ART[t] ? ART[t].top : '#64748b';
-      gm.addColorStop(0, shade(base, 0.34)); gm.addColorStop(1, shade(base, -0.42));
+      gm.addColorStop(0, shade(base, 0.16)); gm.addColorStop(1, shade(base, -0.55));
     }
     cx.fillStyle = gm;
     cx.globalAlpha = hit ? 0.3 : 1;      // 已有球的格子壓暗（＝灰格）
     cx.fill();
     cx.globalAlpha = 1;
+    if (revealing) {                     // 剛翻開的格子閃一下金光
+      cx.fillStyle = 'rgba(255,245,205,.75)'; cx.fill();
+    }
     cx.strokeStyle = 'rgba(8,13,24,.9)'; cx.lineWidth = 3; cx.stroke();
 
     const am = a0 + seg / 2;
-    // 下半圈要多轉 180°，否則文字會上下顛倒；轉了之後所有 y 偏移跟著鏡射
-    const flip = Math.sin(am) > 0;
-    const s = flip ? -1 : 1;
+    const alpha = hit ? 0.35 : 1;
+    // 壽司圖：跟著扇形轉（像迴轉帶上的盤子）
     cx.save();
-    cx.globalAlpha = hit ? 0.35 : 1;
-    cx.translate(CX + Math.cos(am) * ((R_IN + R_OUT) / 2 + 6), CY + Math.sin(am) * ((R_IN + R_OUT) / 2 + 6));
-    cx.rotate(am + Math.PI / 2 + (flip ? Math.PI : 0));
+    cx.globalAlpha = alpha;
+    cx.translate(CX + Math.cos(am) * 228, CY + Math.sin(am) * 228);
+    cx.rotate(am + Math.PI / 2 + (Math.sin(am) > 0 ? Math.PI : 0));
     cx.textAlign = 'center'; cx.textBaseline = 'middle';
     if (spItem || isSP) {
-      cx.font = '26px serif';
-      cx.fillText(spItem ? SP_ITEMS[spItem].emoji : '🎴', 0, -16 * s);
+      cx.font = '30px serif';
+      cx.fillText(spItem ? SP_ITEMS[spItem].emoji : '🎴', 0, 0);
     } else {
-      cx.save(); cx.translate(0, -14 * s); cx.scale(0.5, 0.5); drawSushi(cx, t); cx.restore();
+      cx.save(); cx.scale(0.5, 0.5); drawSushi(cx, t); cx.restore();
     }
-    // 名稱：深色藥丸底 + 白字，任何底色都看得清
+    cx.restore();
+    // 名稱：永遠水平，深色藥丸底，任何底色都讀得清
+    cx.save();
+    cx.globalAlpha = alpha;
+    cx.translate(CX + Math.cos(am) * 178, CY + Math.sin(am) * 178);
+    cx.textAlign = 'center'; cx.textBaseline = 'middle';
     const nm = spItem ? SP_ITEMS[spItem].label : (isSP ? '老闆SP' : ART[t].label);
-    cx.font = 'bold 12px "Noto Sans TC", sans-serif';
-    const w = cx.measureText(nm).width + 12;
-    cx.fillStyle = 'rgba(8,13,24,.72)';
-    roundRect(cx, -w / 2, 24.5 * s - 8.5, w, 17, 8); cx.fill();
+    cx.font = 'bold 12.5px "Noto Sans TC", sans-serif';
+    const w = cx.measureText(nm).width + 13;
+    cx.fillStyle = 'rgba(6,10,20,.8)';
+    roundRect(cx, -w / 2, -9.5, w, 19, 9); cx.fill();
+    cx.strokeStyle = 'rgba(255,255,255,.10)'; cx.lineWidth = 1; cx.stroke();
     cx.fillStyle = spItem || isSP ? '#fde68a' : '#f1f5f9';
-    cx.fillText(nm, 0, 24.5 * s);
-    // 稀有度：格數越少越稀有，用小星星標
+    cx.fillText(nm, 0, 0.5);
+    // 稀有度：只佔 1 格的種類加★
     if (!spItem && !isSP && S.counts[t] === 1) {
-      cx.fillStyle = '#fbbf24'; cx.font = 'bold 11px sans-serif';
-      cx.fillText('★稀有', 0, 43 * s);
+      cx.fillStyle = '#fbbf24'; cx.font = 'bold 10.5px sans-serif';
+      cx.fillText('★', w / 2 + 6, 0);
     }
     cx.restore();
   }
@@ -1292,6 +1540,8 @@ function draw() {
     }
     ball(x, y, 14, '#fff7d6', '#d97706', 'EX', '#431407');
   }
+
+  drawFX(now);
 }
 
 /* ============ UI 更新 ============ */
@@ -1336,8 +1586,8 @@ function refreshAll() {
 
   // 漁的武器highlight
   if ($('wNet')) {
-    $('wNet').style.borderColor = FISH.weapon === 'net' ? '#fbbf24' : '#475569';
-    $('wGrab').style.borderColor = FISH.weapon === 'grab' ? '#fbbf24' : '#475569';
+    $('wNet').classList.toggle('on', FISH.weapon === 'net');
+    $('wGrab').classList.toggle('on', FISH.weapon === 'grab');
   }
 
   // 押注區
@@ -1452,9 +1702,14 @@ $('tuneExport').onclick = () => {
   console.log(s);
 };
 
-/* EX 球落定後的發光需要持續重繪，其餘時候不做事 */
-(function idle() {
-  if (S.exBall && S.exBall.landed && S.phase === 'SP') draw();
+/* 演出需要持續重繪（金幣、發光、SP 翻格、EX 球脈動），沒事時不畫 */
+(function idle(now) {
+  now = now || performance.now();
+  stepFX(now);
+  const busy = FX.coins.length || FX.glow > 0 ||
+    (FX.spReveal && now - FX.spReveal < 1800) ||
+    (S.exBall && S.exBall.landed && S.phase === 'SP');
+  if (busy) draw();
   requestAnimationFrame(idle);
 })();
 
@@ -1465,9 +1720,51 @@ refreshAll();
 log(`迴轉壽司賓果 demo（build ${APP_BUILD}）已載入。復刻 ～あっぱれ!!～ 版。`, 'w');
 log('押注 → 抽 5 球 → 前 3 球後 FREE CHOICE → 結算。押注單位是「壽司種類」，同種佔多格。', 'd');
 
+/* ============ 開發用情境跳轉 ============
+   在網址後加 #demo=win / sp / fish / dairyo / shunryo，載入後直接跳到該情境，
+   方便截圖與回歸（不影響正常玩）。                                        */
+(function devScenario() {
+  const m = /demo=(\w+)/.exec(location.hash);
+  if (!m) return;
+  const k = m[1];
+  setTimeout(() => {
+    const ks = S.kinds.slice();
+    if (k === 'win') {
+      addPlate('geta', ks.slice(0, 3));
+      S.hitTypes = new Set(ks.slice(0, 3));
+      S.phase = 'DRAW'; S.balls = [0, 1, 2, 3, 4];
+      settle();
+      return;
+    }
+    addPlate('geta', ks.slice(0, 3));
+    S.hitTypes = new Set([ks[0]]);
+    S.plates[0].result = 0;
+    S.balls = [0, 3, 6, 9, 12];
+    S.phase = 'SETTLE';
+    if (k === 'sp') { S.spItems = null; startSP(); return; }
+    // fish / dairyo / shunryo：直接把 EX 球導到該獎項
+    S.phase = 'SP';
+    const free = []; for (let i = 0; i < 16; i++) if (!S.balls.includes(i)) free.push(i);
+    S.spItems = {}; free.forEach(i => S.spItems[i] = 'gag');
+    S.spFree = [free[0]];
+    S.spItems[free[0]] = (k === 'fish' ? 'ryo' : k);
+    resolveSP(free[0]);
+    // 預先放幾隻魚，截圖才不用等生成
+    for (let i = 0; i < 9; i++) {
+      FISH.list.push({
+        x: 55 + (i % 5) * 115, y: 55 + Math.floor(i / 5) * 105 + (i % 3) * 22, dy: 0,
+        r: 14 + (i % 3) * 2, type: ks[i % ks.length], value: 12 + i * 4,
+        school: k === 'dairyo' && i % 3 === 0, shun: k === 'shunryo' && i === 4, tier: 120,
+        dead: false, phase: i, amp: 8, vx: i % 2 ? 55 : -55,
+      });
+    }
+  }, 60);
+})();
+
 /* ============ 自動測試掛勾（供 headless 驗證用） ============ */
 window.__TEST__ = {
-  S, T, FISH, hitProb, multOf, newBoard, addPlate, deal, nextRound,
+  S, T, FISH, FX, draw, drawFish, stepFX, celebrate, drawFishShape,
+  hitProb, multOf, newBoard, addPlate, deal, nextRound,
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
   SP_ITEMS,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
