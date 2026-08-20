@@ -250,8 +250,9 @@ const DEF = {
     netCost:    10,  // 網的花費
     grabCost:    2,  // 單抓的花費
     netRadius:  62,  // 網的半徑 px
-    spawnMs:   700,  // 魚生成間隔 ms
-    dairyoMul:  2.6, // 大漁的生成倍率
+    spawnMs:   850,  // 魚生成間隔 ms
+    dairyoMul:  1.8, // 大漁的生成倍率
+    maxFish:     30, // 畫面同時最多幾隻魚（避免擠成一團看不清）
     fishMin:     8,  // 一般魚贏分下限
     fishMax:    30,  // 一般魚贏分上限
     schoolMin:  23,  // 魚群單隻贏分下限（[攻略]）
@@ -298,6 +299,7 @@ const TUNE_META = {
     ['netRadius', '網半徑 px', 20, 140, 2],
     ['spawnMs', '生成間隔 ms', 150, 2000, 50],
     ['dairyoMul', '大漁倍率', 1, 6, 0.2],
+    ['maxFish', '同時最多魚數', 8, 80, 2],
     ['fishMin', '一般魚下限', 1, 60, 1],
     ['fishMax', '一般魚上限', 5, 150, 1],
     ['schoolMin', '魚群下限', 5, 100, 1],
@@ -542,7 +544,7 @@ function buildFreeBox(cands) {
     missingOf(p).forEach(t => {
       const b = document.createElement('button');
       b.className = 'btn';
-      b.textContent = `${SUSHI[t].emoji} ${SUSHI[t].name} 設為命中`;
+      b.innerHTML = `${iconTag(t, 24)} ${SUSHI[t].name} 設為命中`;
       b.onclick = () => {
         p.freeUsed = t; log(`✨ FREE CHOICE：${SUSHI[t].name} 視為命中`, 'w');
         buildFreeBox(S.plates.filter(x => x.free && !x.freeUsed && missingOf(x).length));
@@ -748,7 +750,8 @@ function fishLoop(now) {
   const left = Math.max(0, FISH.endAt - now);
   $('fishTime').textContent = (left / 1000).toFixed(1);
   const rate = T.fish.spawnMs / (FISH.mode === 'dairyo' ? T.fish.dairyoMul : 1);
-  if (now - FISH.lastSpawn > rate) { FISH.lastSpawn = now; spawnFish(now); }
+  // 有上限：擠滿了就先不生成，畫面才看得清
+  if (now - FISH.lastSpawn > rate && FISH.list.length < T.fish.maxFish) { FISH.lastSpawn = now; spawnFish(now); }
   const dt = 1 / 60;
   FISH.list.forEach(f => {
     f.x += f.vx * dt;
@@ -762,50 +765,107 @@ function fishLoop(now) {
 }
 
 function drawFish(now) {
-  fx.clearRect(0, 0, fcv.width, fcv.height);
-  const g = fx.createLinearGradient(0, 0, 0, fcv.height);
-  g.addColorStop(0, '#082f49'); g.addColorStop(1, '#0c1b33');
-  fx.fillStyle = g; fx.fillRect(0, 0, fcv.width, fcv.height);
+  const W = fcv.width, H = fcv.height;
+  fx.clearRect(0, 0, W, H);
+  // 海水：上亮下深
+  const g = fx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#0b4a6f'); g.addColorStop(.55, '#08304a'); g.addColorStop(1, '#04121f');
+  fx.fillStyle = g; fx.fillRect(0, 0, W, H);
+  // 斜射光束
+  fx.save();
+  for (let i = 0; i < 5; i++) {
+    const x = ((i * 137 + now / 60) % (W + 260)) - 130;
+    fx.beginPath();
+    fx.moveTo(x, -10); fx.lineTo(x + 52, -10); fx.lineTo(x + 128, H + 10); fx.lineTo(x + 42, H + 10);
+    fx.closePath();
+    fx.fillStyle = 'rgba(125,211,252,.045)'; fx.fill();
+  }
+  fx.restore();
   // 水波紋
   for (let i = 0; i < 4; i++) {
-    fx.strokeStyle = 'rgba(56,189,248,0.06)'; fx.lineWidth = 18;
+    fx.strokeStyle = 'rgba(56,189,248,0.05)'; fx.lineWidth = 20;
     fx.beginPath();
-    for (let x = 0; x <= fcv.width; x += 12) {
-      const y = 50 + i * 90 + Math.sin((x + now / 24 + i * 40) / 60) * 8;
+    for (let x = 0; x <= W; x += 12) {
+      const y = 40 + i * 95 + Math.sin((x + now / 22 + i * 40) / 62) * 9;
       x ? fx.lineTo(x, y) : fx.moveTo(x, y);
     }
     fx.stroke();
   }
+  // 氣泡（純函數，不需要狀態）
+  for (let i = 0; i < 26; i++) {
+    const sp = 18 + (i % 7) * 9;
+    const bx = (i * 97 % W) + Math.sin((now / 900) + i) * 12;
+    const by = H - ((now / 1000 * sp + i * 53) % (H + 40));
+    const br = 1.6 + (i % 4);
+    fx.beginPath(); fx.arc(bx, by, br, 0, 6.28);
+    fx.fillStyle = 'rgba(186,230,253,.16)'; fx.fill();
+  }
+  // 海底
+  fx.beginPath();
+  fx.moveTo(0, H);
+  for (let x = 0; x <= W; x += 20) fx.lineTo(x, H - 16 - Math.sin(x / 90) * 8);
+  fx.lineTo(W, H); fx.closePath();
+  fx.fillStyle = '#0a2033'; fx.fill();
+
   const need = neededTypes();
-  FISH.list.forEach(f => {
+  // 由遠而近（y 小的先畫）
+  const sorted = FISH.list.slice().sort((a, b) => a.y - b.y);
+  sorted.forEach(f => {
     const y = f.y + (f.dy || 0);
-    if (f.school || f.shun) {
-      fx.beginPath(); fx.arc(f.x, y, f.r + 9, 0, Math.PI * 2);
-      fx.fillStyle = f.shun ? 'rgba(250,204,21,0.28)' : 'rgba(74,222,128,0.25)';
-      fx.fill();
+    if (f.school || f.shun) {   // 發光魚群 / 旬魚的光暈
+      const rg = fx.createRadialGradient(f.x, y, 2, f.x, y, f.r * 2.6);
+      rg.addColorStop(0, f.shun ? 'rgba(250,204,21,.55)' : 'rgba(74,222,128,.42)');
+      rg.addColorStop(1, 'rgba(0,0,0,0)');
+      fx.fillStyle = rg;
+      fx.beginPath(); fx.arc(f.x, y, f.r * 2.6, 0, 6.28); fx.fill();
     }
-    if (need.has(f.type)) {   // 盤上還缺的種類：加紅圈提示
-      fx.beginPath(); fx.arc(f.x, y, f.r + 5, 0, Math.PI * 2);
-      fx.strokeStyle = '#f87171'; fx.lineWidth = 2; fx.stroke();
+    if (need.has(f.type)) {     // 盤上還缺的種類：脈動虛線圈
+      fx.save();
+      fx.setLineDash([5, 4]);
+      fx.lineDashOffset = -now / 60;
+      fx.strokeStyle = 'rgba(248,113,113,.95)'; fx.lineWidth = 2;
+      fx.beginPath(); fx.arc(f.x, y, f.r * 1.9 + Math.sin(now / 220) * 1.5, 0, 6.28); fx.stroke();
+      fx.restore();
     }
-    fx.beginPath(); fx.arc(f.x, y, f.r, 0, Math.PI * 2);
-    fx.fillStyle = f.shun ? '#facc15' : SUSHI[f.type].color; fx.fill();
-    fx.strokeStyle = '#0b1120'; fx.lineWidth = 2; fx.stroke();
+    drawFishShape(fx, f.x, y, f.r, f.vx >= 0 ? 1 : -1, f.type, now, { gold: f.shun });
+    // 價值標籤
+    const txt = f.shun ? '旬 ' + f.tier : '+' + f.value;
+    fx.font = 'bold 11px "Noto Sans TC", sans-serif';
+    const tw = fx.measureText(txt).width + 10;
+    fx.fillStyle = f.shun ? 'rgba(180,83,9,.92)' : 'rgba(8,13,24,.72)';
+    roundRect(fx, f.x - tw / 2, y + f.r * 1.1, tw, 16, 8); fx.fill();
+    fx.fillStyle = f.shun ? '#fff7d6' : '#e2e8f0';
     fx.textAlign = 'center'; fx.textBaseline = 'middle';
-    fx.font = (f.shun ? 20 : 15) + 'px serif';
-    fx.fillText(f.shun ? '🐟' : SUSHI[f.type].emoji, f.x, y);
-    fx.font = 'bold 10px sans-serif'; fx.fillStyle = '#e2e8f0';
-    fx.fillText(f.shun ? '旬 ' + f.tier : f.value, f.x, y + f.r + 9);
+    fx.fillText(txt, f.x, y + f.r * 1.1 + 8);
   });
+  // 出手特效：網是雙圈網格，單抓是小夾子
   if (FISH.ripple) {
-    const k = (now - FISH.ripple.t0) / 320;
+    const k = (now - FISH.ripple.t0) / 360;
     if (k < 1) {
-      fx.beginPath(); fx.arc(FISH.ripple.x, FISH.ripple.y, FISH.ripple.rad * (0.5 + k * 0.7), 0, Math.PI * 2);
-      fx.strokeStyle = `rgba(248,250,252,${1 - k})`; fx.lineWidth = 3; fx.stroke();
+      const rr = FISH.ripple.rad * (0.45 + k * 0.75);
+      fx.save();
+      fx.globalAlpha = 1 - k;
+      fx.strokeStyle = '#f8fafc'; fx.lineWidth = 3;
+      fx.beginPath(); fx.arc(FISH.ripple.x, FISH.ripple.y, rr, 0, 6.28); fx.stroke();
+      if (FISH.ripple.rad > 30) {   // 網：畫網格線
+        fx.lineWidth = 1.4; fx.strokeStyle = 'rgba(248,250,252,.7)';
+        for (let i = -2; i <= 2; i++) {
+          fx.beginPath();
+          fx.moveTo(FISH.ripple.x + i * rr / 2.4, FISH.ripple.y - rr);
+          fx.lineTo(FISH.ripple.x + i * rr / 2.4, FISH.ripple.y + rr); fx.stroke();
+          fx.beginPath();
+          fx.moveTo(FISH.ripple.x - rr, FISH.ripple.y + i * rr / 2.4);
+          fx.lineTo(FISH.ripple.x + rr, FISH.ripple.y + i * rr / 2.4); fx.stroke();
+        }
+      }
+      fx.restore();
     } else FISH.ripple = null;
   }
-  fx.fillStyle = '#94a3b8'; fx.font = '12px sans-serif'; fx.textAlign = 'left';
-  fx.fillText(`武器：${FISH.weapon === 'net' ? '網（範圍）' : '單抓（單體）'}　紅圈＝你盤上還缺的壽司`, 10, fcv.height - 10);
+  // 底部說明條
+  fx.fillStyle = 'rgba(8,13,24,.55)'; fx.fillRect(0, H - 24, W, 24);
+  fx.fillStyle = '#cbd5e1'; fx.font = '12px "Noto Sans TC", sans-serif'; fx.textAlign = 'left';
+  fx.textBaseline = 'middle';
+  fx.fillText(`武器：${FISH.weapon === 'net' ? '🕸️ 網（範圍）' : '🤏 單抓（單體）'}　　🔴 虛線圈＝你盤上還缺的壽司　　✨ 發光＝高價魚群`, 10, H - 12);
 }
 
 function catchFish(f) {
@@ -854,17 +914,253 @@ function endFishing() {
   finishRound();
 }
 
+/* ============ 美術：程式化向量壽司 ============
+   不使用競品素材，也不外掛圖檔。每種壽司用「形制 + 配色 + 表面處理」組出來，
+   在 100x100 的座標系裡畫（中心 0,0），呼叫端自己 translate/scale。            */
+const ART = {
+  0:  { form: 'nigiri', top: '#c0202f', edge: '#7f1020', finish: 'sinew',  label: '鮪魚' },
+  1:  { form: 'nigiri', top: '#f7cf4a', edge: '#c99a12', finish: 'strap',  label: '玉子' },
+  2:  { form: 'nigiri', top: '#f4813c', edge: '#c25617', finish: 'stripe', label: '鮭魚' },
+  3:  { form: 'nigiri', top: '#f79bb0', edge: '#c9576f', finish: 'shrimp', label: '甜蝦' },
+  4:  { form: 'nigiri', top: '#eef2f6', edge: '#a9b6c4', finish: 'score',  label: '花枝' },
+  5:  { form: 'gunkan', top: '#f0a02a', edge: '#b46b0c', finish: 'roe',    label: '海膽' },
+  6:  { form: 'gunkan', top: '#f0552f', edge: '#a82d12', finish: 'roe',    label: '鮭卵' },
+  7:  { form: 'nigiri', top: '#7b4a22', edge: '#4a2a10', finish: 'glaze',  label: '星鰻' },
+  8:  { form: 'maki',   top: '#4caf50', edge: '#2e7d32', finish: 'plain',  label: '河童卷' },
+  9:  { form: 'nigiri', top: '#f6ead2', edge: '#c4b391', finish: 'fan',    label: '干貝' },
+  10: { form: 'nigiri', top: '#f7a8bb', edge: '#cf7288', finish: 'marble', label: '大腹' },
+  11: { form: 'nigiri', top: '#f26b3a', edge: '#b03d15', finish: 'bar',    label: '螃蟹' },
+};
+
+function riceBase(c) {
+  const g = c.createLinearGradient(0, 4, 0, 34);
+  g.addColorStop(0, '#fffdf6'); g.addColorStop(1, '#e2d9c3');
+  c.fillStyle = g;
+  roundRect(c, -35, 2, 70, 30, 14); c.fill();
+  c.strokeStyle = '#cdc3a8'; c.lineWidth = 1.5; c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.75)';
+  for (let i = 0; i < 7; i++) {
+    c.beginPath();
+    c.ellipse(-26 + i * 9, 12 + (i % 2) * 9, 4.2, 2.8, i * 0.7, 0, 6.28); c.fill();
+  }
+}
+// 把 #rrggbb 調亮(正)或調暗(負)
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = (v) => Math.max(0, Math.min(255, Math.round(amt > 0 ? v + (255 - v) * amt : v * (1 + amt))));
+  return '#' + [f(n >> 16 & 255), f(n >> 8 & 255), f(n & 255)]
+    .map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+function drawSushi(c, type) {
+  const a = ART[type] || ART[0];
+  c.save();
+  c.lineJoin = 'round';
+
+  if (a.form === 'maki') {
+    c.beginPath(); c.arc(0, 4, 37, 0, 6.28);
+    const g = c.createRadialGradient(-10, -8, 4, 0, 4, 37);
+    g.addColorStop(0, '#3f4a52'); g.addColorStop(1, '#1a2026');
+    c.fillStyle = g; c.fill();
+    c.beginPath(); c.arc(0, 4, 28, 0, 6.28);
+    c.fillStyle = '#f7f1e0'; c.fill();
+    c.fillStyle = 'rgba(255,255,255,.6)';
+    for (let i = 0; i < 10; i++) {
+      const an = i * 0.628, rr = 17 + (i % 3) * 3;
+      c.beginPath(); c.ellipse(Math.cos(an) * rr, 4 + Math.sin(an) * rr, 4, 2.6, an, 0, 6.28); c.fill();
+    }
+    c.beginPath(); c.arc(0, 4, 13, 0, 6.28);
+    const g2 = c.createRadialGradient(-4, 0, 2, 0, 4, 13);
+    g2.addColorStop(0, '#8fd694'); g2.addColorStop(1, a.top);
+    c.fillStyle = g2; c.fill();
+    c.strokeStyle = a.edge; c.lineWidth = 1.5; c.stroke();
+    c.restore(); return;
+  }
+
+  if (a.form === 'gunkan') {
+    // 軍艦：海苔圍邊 + 飯 + 顆粒狀ネタ
+    roundRect(c, -32, -6, 64, 42, 8);
+    const gn = c.createLinearGradient(0, -6, 0, 36);
+    gn.addColorStop(0, '#2b333b'); gn.addColorStop(1, '#141a1f');
+    c.fillStyle = gn; c.fill();
+    c.strokeStyle = 'rgba(255,255,255,.10)'; c.lineWidth = 1;
+    for (let i = -26; i < 30; i += 7) { c.beginPath(); c.moveTo(i, -5); c.lineTo(i + 3, 35); c.stroke(); }
+    c.fillStyle = '#f7f1e0';
+    roundRect(c, -27, 14, 54, 19, 7); c.fill();
+    // ネタ顆粒
+    const rows = [[-22, -8, 7], [-12, -13, 8], [0, -15, 8], [12, -13, 8], [22, -8, 7]];
+    rows.forEach(([x, y, r]) => {
+      for (let k = 0; k < 3; k++) {
+        const px = x + (k - 1) * 5.5, py = y + Math.abs(k - 1) * 4 + 6;
+        const g = c.createRadialGradient(px - 2, py - 2, 1, px, py, r);
+        g.addColorStop(0, '#fff3d0'); g.addColorStop(0.35, a.top); g.addColorStop(1, a.edge);
+        c.fillStyle = g;
+        c.beginPath(); c.arc(px, py, r * 0.62, 0, 6.28); c.fill();
+      }
+    });
+    c.restore(); return;
+  }
+
+  // 握壽司
+  riceBase(c);
+  c.save();
+  c.rotate(-0.05);
+  roundRect(c, -39, -24, 78, 36, 13);
+  const g = c.createLinearGradient(0, -24, 0, 12);
+  g.addColorStop(0, a.top); g.addColorStop(1, a.edge);
+  c.fillStyle = g; c.fill();
+  c.strokeStyle = a.edge; c.lineWidth = 1.5; c.stroke();
+
+  c.save();
+  roundRect(c, -39, -24, 78, 36, 13); c.clip();
+  if (a.finish === 'stripe') {
+    c.strokeStyle = 'rgba(255,255,255,.72)'; c.lineWidth = 5;
+    for (let i = -30; i < 40; i += 16) { c.beginPath(); c.moveTo(i, -26); c.lineTo(i - 12, 14); c.stroke(); }
+  } else if (a.finish === 'sinew') {
+    c.strokeStyle = 'rgba(255,255,255,.30)'; c.lineWidth = 2.5;
+    for (let i = -28; i < 40; i += 14) { c.beginPath(); c.moveTo(i, -26); c.lineTo(i - 8, 14); c.stroke(); }
+  } else if (a.finish === 'marble') {
+    c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 3.5;
+    [-22, -6, 10, 24].forEach(x => {
+      c.beginPath(); c.moveTo(x, -26);
+      c.bezierCurveTo(x - 10, -12, x + 6, 0, x - 6, 14); c.stroke();
+    });
+  } else if (a.finish === 'bar') {
+    c.fillStyle = '#fff6ee';
+    for (let i = -34; i < 40; i += 18) { c.fillRect(i, -26, 8, 42); }
+  } else if (a.finish === 'score') {
+    c.strokeStyle = 'rgba(150,170,190,.6)'; c.lineWidth = 2;
+    for (let i = -28; i < 36; i += 11) { c.beginPath(); c.moveTo(i, -24); c.lineTo(i + 8, 12); c.stroke(); }
+  } else if (a.finish === 'fan') {
+    c.strokeStyle = 'rgba(190,170,130,.75)'; c.lineWidth = 2;
+    for (let i = 0; i < 7; i++) {
+      c.beginPath(); c.moveTo(0, 12);
+      c.lineTo(-34 + i * 11, -24); c.stroke();
+    }
+  } else if (a.finish === 'shrimp') {
+    c.strokeStyle = '#fff'; c.lineWidth = 3;
+    for (let i = -26; i < 34; i += 12) {
+      c.beginPath(); c.arc(i, -6, 13, Math.PI * 0.05, Math.PI * 0.95); c.stroke();
+    }
+  } else if (a.finish === 'glaze') {
+    const gl = c.createLinearGradient(0, -24, 0, 12);
+    gl.addColorStop(0, 'rgba(255,220,150,.55)'); gl.addColorStop(.5, 'rgba(255,255,255,0)');
+    c.fillStyle = gl; c.fillRect(-40, -24, 80, 36);
+  }
+  // 共用高光
+  const hl = c.createLinearGradient(-20, -24, 10, -2);
+  hl.addColorStop(0, 'rgba(255,255,255,.45)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = hl; c.fillRect(-40, -24, 80, 20);
+  c.restore();
+  c.restore();
+
+  if (a.finish === 'strap') {   // 玉子的海苔帶
+    c.fillStyle = '#1f262c';
+    roundRect(c, -41, -8, 82, 13, 3); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.12)';
+    roundRect(c, -41, -8, 82, 4, 2); c.fill();
+  }
+  c.restore();
+}
+
+// 快取成小圖，給 HTML 的 chip / 按鈕用
+const ICON_CACHE = {};
+function sushiIcon(type, size) {
+  const key = type + '@' + size;
+  if (ICON_CACHE[key]) return ICON_CACHE[key];
+  const c2 = document.createElement('canvas');
+  c2.width = c2.height = size;
+  const c = c2.getContext('2d');
+  c.translate(size / 2, size / 2);
+  c.scale(size / 104, size / 104);
+  drawSushi(c, type);
+  return (ICON_CACHE[key] = c2.toDataURL());
+}
+function iconTag(type, size) {
+  return `<img src="${sushiIcon(type, size || 26)}" width="${size || 26}" height="${size || 26}" style="vertical-align:middle;filter:drop-shadow(0 1px 1px rgba(0,0,0,.5))">`;
+}
+
+/* 魚：身體 + 會擺動的尾巴 + 背上的ネタ */
+function drawFishShape(c, x, y, r, dir, type, t, opt) {
+  opt = opt || {};
+  const a = ART[type] || ART[0];
+  const wob = Math.sin(t / 130 + x * 0.05) * 0.35;
+  c.save();
+  c.translate(x, y);
+  c.scale(dir, 1);
+  // 尾巴
+  c.save(); c.rotate(wob * 0.5);
+  c.beginPath();
+  c.moveTo(-r * 1.15, 0);
+  c.lineTo(-r * 2.05, -r * 0.72);
+  c.quadraticCurveTo(-r * 1.55, 0, -r * 2.05, r * 0.72);
+  c.closePath();
+  c.fillStyle = opt.gold ? '#f6c141' : a.edge; c.fill();
+  c.restore();
+  // 背鰭
+  c.beginPath();
+  c.moveTo(-r * 0.2, -r * 0.82);
+  c.quadraticCurveTo(r * 0.1, -r * 1.55, r * 0.55, -r * 0.7);
+  c.closePath();
+  c.fillStyle = opt.gold ? '#e0a92c' : a.edge; c.fill();
+  // 身體
+  c.beginPath();
+  c.ellipse(0, 0, r * 1.5, r * 0.92, 0, 0, 6.28);
+  const g = c.createLinearGradient(0, -r, 0, r);
+  if (opt.gold) { g.addColorStop(0, '#ffe9a3'); g.addColorStop(.55, '#f6c141'); g.addColorStop(1, '#c98c12'); }
+  else { g.addColorStop(0, '#dbe9f4'); g.addColorStop(.5, a.top); g.addColorStop(1, a.edge); }
+  c.fillStyle = g; c.fill();
+  c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 1.5; c.stroke();
+  // 腹部亮面
+  c.beginPath(); c.ellipse(r * 0.1, r * 0.34, r * 1.05, r * 0.4, 0, 0, 6.28);
+  c.fillStyle = 'rgba(255,255,255,.35)'; c.fill();
+  // 胸鰭
+  c.beginPath();
+  c.moveTo(r * 0.15, r * 0.15);
+  c.quadraticCurveTo(-r * 0.25, r * 0.95, r * 0.6, r * 0.5);
+  c.closePath(); c.fillStyle = 'rgba(255,255,255,.45)'; c.fill();
+  // 眼睛
+  c.beginPath(); c.arc(r * 0.92, -r * 0.2, r * 0.24, 0, 6.28);
+  c.fillStyle = '#fff'; c.fill();
+  c.beginPath(); c.arc(r * 0.98, -r * 0.2, r * 0.12, 0, 6.28);
+  c.fillStyle = '#111'; c.fill();
+  c.restore();
+
+  // 背上的ネタ（不隨方向鏡射，避免形狀反過來；刻意畫小一點，讓魚身看得見）
+  c.save();
+  c.translate(x, y - r * 0.95);
+  const s = r * 0.023;
+  c.scale(s, s);
+  drawSushi(c, type);
+  c.restore();
+}
+
 /* ============ 繪製輪盤 ============ */
 const cv = $('wheel'), cx = cv.getContext('2d');
 const CX = 287, CY = 287, R_OUT = 272, R_IN = 150, R_BALL = 232;
 function pocketAngle(i) { return -Math.PI / 2 + (i + 0.5) * (Math.PI * 2 / 16); }
 
 function draw() {
+  const now = performance.now();
   cx.clearRect(0, 0, cv.width, cv.height);
-  // 外圈
-  cx.beginPath(); cx.arc(CX, CY, R_OUT + 2, 0, Math.PI * 2);
-  cx.fillStyle = '#0d1526'; cx.fill();
-  cx.strokeStyle = '#334155'; cx.lineWidth = 2; cx.stroke();
+  // 外圈：檯面木紋感 + 內陰影
+  const og = cx.createRadialGradient(CX, CY - 60, 60, CX, CY, R_OUT + 20);
+  og.addColorStop(0, '#1b2740'); og.addColorStop(1, '#080d18');
+  cx.fillStyle = og;
+  cx.beginPath(); cx.arc(CX, CY, R_OUT + 16, 0, Math.PI * 2); cx.fill();
+  cx.beginPath(); cx.arc(CX, CY, R_OUT + 6, 0, Math.PI * 2);
+  cx.strokeStyle = '#3b4a68'; cx.lineWidth = 6; cx.stroke();
+  cx.beginPath(); cx.arc(CX, CY, R_OUT + 6, 0, Math.PI * 2);
+  cx.strokeStyle = 'rgba(251,191,36,.25)'; cx.lineWidth = 2; cx.stroke();
 
   const seg = Math.PI * 2 / 16;
   for (let i = 0; i < 16; i++) {
@@ -880,38 +1176,67 @@ function draw() {
     cx.lineTo(CX + Math.cos(a1) * R_IN, CY + Math.sin(a1) * R_IN);
     cx.arc(CX, CY, R_IN, a1, a0, true);
     cx.closePath();
+    // 底色：由內往外的漸層，讓格子有厚度
+    const gm = cx.createRadialGradient(CX, CY, R_IN, CX, CY, R_OUT);
     if (spItem) {
-      cx.fillStyle = SP_ITEMS[spItem].color;
+      gm.addColorStop(0, SP_ITEMS[spItem].color); gm.addColorStop(1, shade(SP_ITEMS[spItem].color, -0.45));
     } else if (isSP) {
-      const g = cx.createLinearGradient(CX, CY - R_OUT, CX, CY + R_OUT);
-      g.addColorStop(0, '#a855f7'); g.addColorStop(1, '#6b21a8');
-      cx.fillStyle = g;
+      gm.addColorStop(0, '#c084fc'); gm.addColorStop(1, '#4c1d95');
     } else {
-      cx.fillStyle = SUSHI[t].color;
+      const base = ART[t] ? ART[t].top : '#64748b';
+      gm.addColorStop(0, shade(base, 0.34)); gm.addColorStop(1, shade(base, -0.42));
     }
-    cx.globalAlpha = hit ? 0.35 : 1;      // 已有球的格子壓暗（＝灰格）
+    cx.fillStyle = gm;
+    cx.globalAlpha = hit ? 0.3 : 1;      // 已有球的格子壓暗（＝灰格）
     cx.fill();
     cx.globalAlpha = 1;
-    cx.strokeStyle = '#0b1120'; cx.lineWidth = 2; cx.stroke();
+    cx.strokeStyle = 'rgba(8,13,24,.9)'; cx.lineWidth = 3; cx.stroke();
 
-    // 標籤
     const am = a0 + seg / 2;
+    // 下半圈要多轉 180°，否則文字會上下顛倒；轉了之後所有 y 偏移跟著鏡射
+    const flip = Math.sin(am) > 0;
+    const s = flip ? -1 : 1;
     cx.save();
-    cx.translate(CX + Math.cos(am) * ((R_IN + R_OUT) / 2), CY + Math.sin(am) * ((R_IN + R_OUT) / 2));
-    cx.rotate(am + Math.PI / 2);
+    cx.globalAlpha = hit ? 0.35 : 1;
+    cx.translate(CX + Math.cos(am) * ((R_IN + R_OUT) / 2 + 6), CY + Math.sin(am) * ((R_IN + R_OUT) / 2 + 6));
+    cx.rotate(am + Math.PI / 2 + (flip ? Math.PI : 0));
     cx.textAlign = 'center'; cx.textBaseline = 'middle';
-    cx.font = '20px serif';
-    cx.fillText(spItem ? SP_ITEMS[spItem].emoji : (isSP ? '🎴' : SUSHI[t].emoji), 0, -10);
-    cx.font = 'bold 11px sans-serif';
-    cx.fillStyle = (spItem || isSP) ? '#fde68a' : '#0b1120';
-    cx.fillText(spItem ? SP_ITEMS[spItem].label : (isSP ? '老闆SP' : SUSHI[t].name), 0, 8);
+    if (spItem || isSP) {
+      cx.font = '26px serif';
+      cx.fillText(spItem ? SP_ITEMS[spItem].emoji : '🎴', 0, -16 * s);
+    } else {
+      cx.save(); cx.translate(0, -14 * s); cx.scale(0.5, 0.5); drawSushi(cx, t); cx.restore();
+    }
+    // 名稱：深色藥丸底 + 白字，任何底色都看得清
+    const nm = spItem ? SP_ITEMS[spItem].label : (isSP ? '老闆SP' : ART[t].label);
+    cx.font = 'bold 12px "Noto Sans TC", sans-serif';
+    const w = cx.measureText(nm).width + 12;
+    cx.fillStyle = 'rgba(8,13,24,.72)';
+    roundRect(cx, -w / 2, 24.5 * s - 8.5, w, 17, 8); cx.fill();
+    cx.fillStyle = spItem || isSP ? '#fde68a' : '#f1f5f9';
+    cx.fillText(nm, 0, 24.5 * s);
+    // 稀有度：格數越少越稀有，用小星星標
+    if (!spItem && !isSP && S.counts[t] === 1) {
+      cx.fillStyle = '#fbbf24'; cx.font = 'bold 11px sans-serif';
+      cx.fillText('★稀有', 0, 43 * s);
+    }
     cx.restore();
   }
 
-  // 中央
+  // 中央：玻璃感圓盤
+  const cg = cx.createRadialGradient(CX - 40, CY - 50, 10, CX, CY, R_IN);
+  cg.addColorStop(0, '#22314f'); cg.addColorStop(1, '#0a1120');
   cx.beginPath(); cx.arc(CX, CY, R_IN - 4, 0, Math.PI * 2);
-  cx.fillStyle = '#0f172a'; cx.fill();
-  cx.strokeStyle = '#334155'; cx.stroke();
+  cx.fillStyle = cg; cx.fill();
+  cx.strokeStyle = '#3b4a68'; cx.lineWidth = 3; cx.stroke();
+  cx.beginPath(); cx.arc(CX, CY, R_IN - 12, 0, Math.PI * 2);
+  cx.strokeStyle = 'rgba(251,191,36,.18)'; cx.lineWidth = 1; cx.stroke();
+  // 上緣反光
+  cx.save();
+  cx.beginPath(); cx.arc(CX, CY, R_IN - 6, Math.PI * 1.08, Math.PI * 1.92); cx.clip();
+  const sg = cx.createLinearGradient(0, CY - R_IN, 0, CY);
+  sg.addColorStop(0, 'rgba(255,255,255,.10)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+  cx.fillStyle = sg; cx.fillRect(CX - R_IN, CY - R_IN, R_IN * 2, R_IN); cx.restore();
   cx.textAlign = 'center'; cx.fillStyle = '#7dd3fc';
   cx.font = 'bold 15px sans-serif';
   cx.fillText(`第 ${S.round} 局`, CX, CY - 30);
@@ -921,36 +1246,51 @@ function draw() {
   cx.fillText('球數', CX, CY + 26);
   if (S.phase === 'FREE') { cx.fillStyle = '#f0abfc'; cx.font = 'bold 13px sans-serif'; cx.fillText('FREE CHOICE', CX, CY + 52); }
 
-  // 已落定的球
+  // 球：立體感（陰影 + 高光）
+  const ball = (x, y, r, c1, c2, label, lc) => {
+    cx.beginPath(); cx.ellipse(x + 2, y + 4, r * 0.95, r * 0.55, 0, 0, 6.28);
+    cx.fillStyle = 'rgba(0,0,0,.4)'; cx.fill();
+    const g = cx.createRadialGradient(x - r * .4, y - r * .5, r * .15, x, y, r);
+    g.addColorStop(0, c1); g.addColorStop(1, c2);
+    cx.beginPath(); cx.arc(x, y, r, 0, 6.28);
+    cx.fillStyle = g; cx.fill();
+    cx.strokeStyle = 'rgba(8,13,24,.85)'; cx.lineWidth = 2; cx.stroke();
+    if (label) {
+      cx.fillStyle = lc; cx.font = 'bold 11px sans-serif';
+      cx.textAlign = 'center'; cx.textBaseline = 'middle';
+      cx.fillText(label, x, y + 1);
+    }
+  };
   S.balls.forEach((idx, n) => {
     const a = pocketAngle(idx);
-    const x = CX + Math.cos(a) * R_BALL, y = CY + Math.sin(a) * R_BALL;
-    cx.beginPath(); cx.arc(x, y, 11, 0, Math.PI * 2);
-    cx.fillStyle = '#f8fafc'; cx.fill();
-    cx.strokeStyle = '#0b1120'; cx.lineWidth = 2; cx.stroke();
-    cx.fillStyle = '#0b1120'; cx.font = 'bold 11px sans-serif'; cx.textBaseline = 'middle';
-    cx.fillText(String(n + 1), x, y + 1);
+    ball(CX + Math.cos(a) * R_BALL, CY + Math.sin(a) * R_BALL, 11, '#ffffff', '#b8c4d4', String(n + 1), '#0b1120');
   });
 
-  // 飛行中的球
+  // 飛行中的球（帶殘影）
   if (S.ballAnim && S.ballAnim.cur != null) {
     const a = S.ballAnim.cur;
-    const x = CX + Math.cos(a) * R_BALL, y = CY + Math.sin(a) * R_BALL;
-    cx.beginPath(); cx.arc(x, y, 11, 0, Math.PI * 2);
-    cx.fillStyle = '#fde68a'; cx.fill();
-    cx.strokeStyle = '#b45309'; cx.lineWidth = 2; cx.stroke();
+    for (let k = 4; k >= 1; k--) {
+      const aa = a + k * 0.055;
+      cx.globalAlpha = 0.1 * (5 - k);
+      cx.beginPath(); cx.arc(CX + Math.cos(aa) * R_BALL, CY + Math.sin(aa) * R_BALL, 9 - k, 0, 6.28);
+      cx.fillStyle = '#fde68a'; cx.fill();
+    }
+    cx.globalAlpha = 1;
+    ball(CX + Math.cos(a) * R_BALL, CY + Math.sin(a) * R_BALL, 11, '#fffbea', '#eab308');
   }
 
-  // 第 6 顆 EX 球（金色，較大）
+  // 第 6 顆 EX 球（金色，較大，落定後發光）
   if (S.exBall && S.exBall.cur != null) {
     const a = S.exBall.landed ? S.exBall.to : S.exBall.cur;
     const x = CX + Math.cos(a) * R_BALL, y = CY + Math.sin(a) * R_BALL;
-    cx.beginPath(); cx.arc(x, y, 14, 0, Math.PI * 2);
-    cx.fillStyle = '#fbbf24'; cx.fill();
-    cx.strokeStyle = '#7c2d12'; cx.lineWidth = 3; cx.stroke();
-    cx.fillStyle = '#431407'; cx.font = 'bold 10px sans-serif';
-    cx.textAlign = 'center'; cx.textBaseline = 'middle';
-    cx.fillText('EX', x, y + 1);
+    if (S.exBall.landed) {
+      const pulse = 18 + Math.sin(now / 180) * 6;
+      const g = cx.createRadialGradient(x, y, 4, x, y, pulse + 14);
+      g.addColorStop(0, 'rgba(251,191,36,.55)'); g.addColorStop(1, 'rgba(251,191,36,0)');
+      cx.fillStyle = g;
+      cx.beginPath(); cx.arc(x, y, pulse + 14, 0, 6.28); cx.fill();
+    }
+    ball(x, y, 14, '#fff7d6', '#d97706', 'EX', '#431407');
   }
 }
 
@@ -969,8 +1309,9 @@ function refreshAll() {
   S.kinds.slice().sort((a, b) => S.counts[a] - S.counts[b]).forEach(t => {
     const d = document.createElement('div');
     d.className = 'chip' + (S.selected.includes(t) ? ' sel' : '') + (S.hitTypes.has(t) ? ' hit' : '');
-    d.innerHTML = `<span>${SUSHI[t].emoji}</span><span>${SUSHI[t].name}</span>` +
-      `<span class="pk">${S.counts[t]}格</span><span class="mul">×${multOf('maru', [t]).toFixed(1)}</span>`;
+    d.innerHTML = iconTag(t, 30) + `<span>${SUSHI[t].name}</span>` +
+      `<span class="pk">${S.counts[t]}格${S.counts[t] === 1 ? ' ★' : ''}</span>` +
+      `<span class="mul">×${multOf('maru', [t]).toFixed(1)}</span>`;
     d.onclick = () => toggleSel(t);
     chips.appendChild(d);
   });
@@ -983,7 +1324,7 @@ function refreshAll() {
     const w = { 60: T.sp.shun60, 120: T.sp.shun120, 240: T.sp.shun240 }[ps.stake] || T.sp.shun60;
     const d = document.createElement('div');
     d.style.cssText = 'background:#2e1065;border:1px solid #7c3aed;border-radius:8px;padding:8px;margin:0 0 8px';
-    d.innerHTML = `<b style="color:#c4b5fd">🐟 特殊壽司 旬ネタ</b>　${SUSHI[ps.type].emoji}${SUSHI[ps.type].name}` +
+    d.innerHTML = `<b style="color:#c4b5fd">🐟 特殊壽司 旬ネタ</b>　${iconTag(ps.type, 28)}${SUSHI[ps.type].name}` +
       `　押 <b>${ps.stake}</b> 枚 → 中 <b style="color:#4ade80">${w}</b> 枚` +
       `<div class="hint" style="margin:4px 0 6px">只在老闆SP 抽選（沒進老闆SP 就直接損失），每人限 1 盤，僅限本局。</div>`;
     const b = document.createElement('button');
@@ -1006,7 +1347,7 @@ function refreshAll() {
     S.maruCombos.forEach(c => {
       const b = document.createElement('button');
       const m = multOf('maru', c);
-      b.innerHTML = c.map(t => SUSHI[t].emoji + SUSHI[t].name).join('＋') + ` <span style="color:#f472b6">×${m.toFixed(1)}</span>`;
+      b.innerHTML = c.map(t => iconTag(t, 24) + SUSHI[t].name).join('＋') + ` <span style="color:#f472b6">×${m.toFixed(1)}</span>`;
       b.onclick = () => addPlate('maru', c);
       wrap.appendChild(b);
     });
@@ -1034,8 +1375,8 @@ function refreshAll() {
     const res = p.result == null ? '—' : (p.result ? `<span class="won">+${p.result}</span>` : '<span class="lost">未中</span>');
     tr.innerHTML = `<td>${KIND_NAME[p.kind]}${p.free ? ' <span class="free">FREE</span>' : ''}</td>` +
       `<td>${p.kind === 'shun'
-        ? SUSHI[p.types[0]].emoji + SUSHI[p.types[0]].name + '（老闆SP 抽選）'
-        : p.types.map(t => (isHit(p, t) ? '✅' : '⬜') + SUSHI[t].name + (p.freeUsed === t ? '(F)' : '')).join(' ')}</td>` +
+        ? iconTag(p.types[0], 22) + SUSHI[p.types[0]].name + '（老闆SP 抽選）'
+        : p.types.map(t => (isHit(p, t) ? '✅' : '⬜') + iconTag(t, 20) + SUSHI[t].name + (p.freeUsed === t ? '(F)' : '')).join(' ')}</td>` +
       `<td>${p.count}</td><td>${p.stake * p.count}</td><td>${p.per} (×${p.mult.toFixed(1)})</td><td>${res}</td>`;
     tb.appendChild(tr);
   });
@@ -1110,6 +1451,12 @@ $('tuneExport').onclick = () => {
   log('參數 JSON 已複製到剪貼簿', 'd');
   console.log(s);
 };
+
+/* EX 球落定後的發光需要持續重繪，其餘時候不做事 */
+(function idle() {
+  if (S.exBall && S.exBall.landed && S.phase === 'SP') draw();
+  requestAnimationFrame(idle);
+})();
 
 /* ============ 啟動 ============ */
 newBoard();
