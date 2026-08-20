@@ -251,14 +251,15 @@
   }
 
   /* ---- 中獎快報 ---- */
+  /* 中獎快報：蓋在轉盤上（跟著版面一起縮放），不要 fixed 在瀏覽器視窗 */
   #toast {
-    position: fixed; left: 50%; top: 15%; z-index: 80; pointer-events: none;
+    position: absolute; left: 50%; top: 26%; z-index: 8; pointer-events: none;
     transform: translate(-50%, -18px); opacity: 0; transition: opacity .22s, transform .22s;
   }
   #toast.show { opacity: 1; transform: translate(-50%, 0); }
   .toast-in {
-    padding: 15px 34px; border-radius: 18px; text-align: center;
-    font-size: 30px; font-weight: 900; letter-spacing: 2px; color: var(--gold-2);
+    padding: 13px 30px; border-radius: 18px; text-align: center;
+    font-size: 27px; font-weight: 900; letter-spacing: 2px; color: var(--gold-2);
     background: linear-gradient(180deg, #3d2c08, #1c1304);
     border: 1px solid var(--gold);
     box-shadow: 0 16px 48px rgba(0,0,0,.65), 0 0 46px rgba(233,181,63,.3), inset 0 1px 0 rgba(255,255,255,.2);
@@ -401,8 +402,6 @@
 </head>
 <body>
 
-<div id="toast"><div class="toast-in" id="toastIn"></div></div>
-
 <div id="stageWrap">
 <div id="app">
   <!-- ===== 左欄：機種資訊／中獎紀錄／累計／玩家 ===== -->
@@ -446,6 +445,7 @@
         <canvas id="wheel" width="861" height="861"></canvas>
         <canvas id="fish" width="861" height="861"></canvas>
         <div id="startFx"><div class="sf-bg"></div><div class="sf-in"><div class="sf-sub">第 1 局</div><div class="sf-main">抽選開始</div></div></div>
+        <div id="toast"><div class="toast-in" id="toastIn"></div></div>
       </div>
 
       <!-- 魚機控制條（魚機接管轉盤時才出現） -->
@@ -530,7 +530,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'A7';
+const APP_BUILD = 'A8';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -636,7 +636,7 @@ const TUNE_META = {
   ],
   econ: [
     ['startBalance', '起始枚數', 100, 5000, 50],
-    ['plateCap', '單盤當選上限', 500, 30000, 100],
+    ['plateCap', '單盤得分上限', 500, 30000, 100],
     ['maxPlates', '同組合上限盤', 1, 30, 1],
     ['maruLo', '圓盤賠率下限', 1, 5, 0.1],
     ['maruHi', '圓盤賠率上限', 2, 30, 0.1],
@@ -861,11 +861,11 @@ function addPlate(kind, types, quiet) {
   if (p) {
     if (p.count >= T.econ.maxPlates) return fail(`這個組合已達 ${T.econ.maxPlates} 盤上限`);
     if (per * (p.count + 1) > T.econ.plateCap) {
-      return fail(`當選額上限：再加押會超過 ${fmt(T.econ.plateCap)} 枚`);
+      return fail(`BINGO得分上限：再加押會超過 ${fmt(T.econ.plateCap)} 枚`);
     }
     p.count++;
   } else {
-    if (per > T.econ.plateCap) return fail('這個組合單盤賠付就超過當選額上限');
+    if (per > T.econ.plateCap) return fail('這個組合單盤賠付就超過 BINGO得分上限');
     p = { key, kind, types: types.slice(), count: 1, mult, per, stake, free: false, result: null };
     // FREE CHOICE：只有三貫與五貫有機會取得
     if (kind !== 'maru' && Math.random() < T.prob.freeChance) p.free = true;
@@ -2019,7 +2019,7 @@ function renderSeat() {
         `<span class="tile ${isHit(p, t) ? 'on' : 'off'}" title="${SUSHI[t].name}">${iconTag(t, 26)}</span>`).join('') + '</div>' +
       `<div class="seat-head"><b>${KIND_NAME[p.kind]}</b>×${p.count} 盤　押 ${fmt(p.stake * p.count)}${res}</div>`;
 
-    // 右：一疊碟子，正面印當選額
+    // 右：一疊碟子，正面印 BINGO得分
     const st = document.createElement('div');
     st.className = 'stack' + (done ? ' done' : '');
     const shown = Math.min(p.count, 14);            // 疊到 14 片高就不再長高
@@ -2124,15 +2124,15 @@ function refreshAll() {
   const rg = payRange(S.kind, S.selected);
   if (!rg) {
     od.className = 'odds wait';
-    od.innerHTML = '<span class="od-lb">當選額</span><span class="od-v">再選 ' +
+    od.innerHTML = '<span class="od-lb">BINGO得分</span><span class="od-v">再選 ' +
       (KIND_SIZE[S.kind][0] - S.selected.length) + ' 種</span>';
   } else if (rg.exact) {
     od.className = 'odds';
-    od.innerHTML = '<span class="od-lb">當選額</span><span class="od-v">' + fmt(rg.max) +
+    od.innerHTML = '<span class="od-lb">BINGO得分</span><span class="od-v">' + fmt(rg.max) +
       ' <small>枚 ×' + rg.maxMul.toFixed(1) + '</small></span>';
   } else {
     od.className = 'odds';
-    od.innerHTML = '<span class="od-lb">當選額（看你補哪幾種）</span><span class="od-v">' +
+    od.innerHTML = '<span class="od-lb">BINGO得分（看你補哪幾種）</span><span class="od-v">' +
       fmt(rg.min) + ' <small>~</small> ' + fmt(rg.max) + ' <small>枚</small></span>';
   }
   area.appendChild(od);
@@ -2287,7 +2287,6 @@ window.addEventListener('resize', fitScreen);
 fitScreen();
 
 /* ============ 啟動 ============ */
-S.stamps = 1 + rnd(4);          // [攻略] 開機時常常已經有 1~4 個印章
 newBoard();
 startBetPhase();
 buildTune();
