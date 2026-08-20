@@ -421,7 +421,9 @@ function deal() {
 }
 
 function dropBall(i) {
-  if (i >= 3 && i < 5 && S.phase === 'FREE') return;   // 等 FREE CHOICE
+  // 防重入：只有在抽球階段、球數剛好等於 i、且沒有球正在飛時才發球。
+  // （少了這道，連點「繼續」會開出第二條抽球鏈 → 抽出 7 顆球且結算跑兩次）
+  if (S.phase !== 'DRAW' || S.balls.length !== i || S.ballAnim) return;
   const idx = S.drawOrder[i];
   const targetAngle = pocketAngle(idx);
   S.ballAnim = { t0: performance.now(), idx, from: targetAngle + Math.PI * 2 * T.rhythm.spinTurns, to: targetAngle, i };
@@ -479,6 +481,7 @@ function buildFreeBox(cands) {
 }
 
 $('fcDone').onclick = () => {
+  if (S.phase !== 'FREE') return;          // 防連點
   $('freeBox').style.display = 'none';
   S.phase = 'DRAW'; refreshAll();
   dropBall(3);
@@ -488,6 +491,7 @@ $('fcDone').onclick = () => {
 function isHit(p, t) { return S.hitTypes.has(t) || p.freeUsed === t; }
 
 function settle() {
+  if (S.phase === 'SETTLE') return;        // 只結算一次
   S.phase = 'SETTLE';
   let win = 0;
   S.plates.forEach(p => {
