@@ -289,6 +289,45 @@
     background: #0b1120; border: 1px solid var(--line); color: var(--txt);
     font-variant-numeric: tabular-nums;
   }
+  /* ---- 轉盤上方：我押注的壽司（開中會亮） ---- */
+  .mybets {
+    display: none; flex: 0 0 auto; align-items: center; gap: 6px; flex-wrap: wrap;
+    margin: 0 0 6px; padding: 5px 8px; border-radius: 11px;
+    background: linear-gradient(180deg, #131c33, #0b1223); border: 1px solid var(--line);
+  }
+  .mybets.on { display: flex; }
+  .mybets .mb-lb { font-size: 10.5px; letter-spacing: 1px; color: var(--muted-2); margin-right: 2px; }
+  .mb {
+    position: relative; display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 4px;
+    border-radius: 999px; font-size: 12px; font-weight: 700; color: #d7e2f7;
+    background: #0d1526; border: 1px solid var(--line-soft);
+  }
+  .mb.hit { color: #eafff3; border-color: var(--jade); background: linear-gradient(180deg, #1c5c3c, #10402a); }
+  .mb .mb-n { font-size: 10px; font-weight: 400; color: var(--muted); }
+  .mb.hit .mb-n { color: #bdf3d6; }
+
+  /* ---- 我的座位：依盤數堆起來的壽司盤 ---- */
+  .seat-grp { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .seat-grp:last-child { border-bottom: 0; }
+  .seat-head { display: flex; align-items: baseline; gap: 6px; font-size: 11.5px; color: var(--muted); }
+  .seat-head b { font-size: 13px; color: #dde7ff; }
+  .seat-head .sh-pay { margin-left: auto; color: #ffa9d0; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .seat-head .sh-won { margin-left: auto; color: var(--jade-2); font-weight: 800; }
+  .seat-head .sh-lost { margin-left: auto; color: var(--muted-2); }
+  .stack { position: relative; margin-top: 6px; height: 74px; }
+  .stack .pl {
+    position: absolute; left: 0; display: flex; align-items: center; justify-content: center; gap: 2px;
+    padding: 3px 8px; border-radius: 999px;
+    background: linear-gradient(180deg, #f4f7fb, #c3ccdb);
+    border: 1px solid #8f9bb0; box-shadow: 0 2px 3px rgba(0,0,0,.45);
+  }
+  .stack .pl.red { background: linear-gradient(180deg, #ffd9d3, #e08d80); border-color: #b4645a; }
+  .stack .pl.gold { background: linear-gradient(180deg, #ffe9ae, #d8ab48); border-color: #a97f22; }
+  .stack .pl img { display: block; }
+  .stack .more {
+    position: absolute; right: 2px; bottom: 0; font-size: 12px; font-weight: 800; color: var(--gold-2);
+    font-variant-numeric: tabular-nums;
+  }
   .hint { font-size: 10.5px; color: var(--muted-2); line-height: 1.6; margin: 6px 0; }
   .kv { padding: 5px 0; }
   .sub { margin-bottom: 8px; }
@@ -330,6 +369,8 @@
   <!-- ===== 中欄：舞台（輪盤／魚機共用同一塊） ===== -->
   <div class="col">
     <div class="card mid">
+      <div id="myBets" class="mybets"></div>
+
       <div class="stage" id="stage">
         <canvas id="wheel" width="574" height="574"></canvas>
         <canvas id="fish" width="574" height="574"></canvas>
@@ -378,10 +419,8 @@
     </div>
 
     <div class="card grow">
-      <h2>已押注的盤</h2>
-      <div class="scroll">
-        <table id="plateTable"><thead><tr><th>盤型</th><th>組合</th><th>盤</th><th>押</th><th>賠付</th><th>結果</th></tr></thead><tbody></tbody></table>
-      </div>
+      <h2>我的座位 <span class="tag" id="seatTotal">0 盤</span></h2>
+      <div class="scroll" id="seat"></div>
     </div>
 
     <div class="card">
@@ -416,7 +455,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'A3';
+const APP_BUILD = 'A4';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -689,38 +728,56 @@ const KIND_SIZE = { maru: [1, 2], geta: [3, 3], funa: [5, 5] };
 /* ============ 押注 ============ */
 function plateKey(kind, types) { return kind + ':' + types.slice().sort((a, b) => a - b).join(','); }
 
-function addPlate(kind, types) {
-  if (S.phase !== 'BET') { log('抽球中不能押注', 'd'); return; }
+/* 押注失敗的原因要讓玩家看得到（log 只進 console） */
+function notice(msg) { S.notice = { msg, at: performance.now() }; }
+
+/* 回傳 true/false，讓「＋10 盤」知道能不能繼續加 */
+function addPlate(kind, types, quiet) {
+  const fail = m => { S.lastFail = m; if (!quiet) notice(m); log(m); return false; };
+  if (S.phase !== 'BET') return fail('抽球中不能押注');
   const stake = kind === 'shun' ? (S.pendingShun ? S.pendingShun.stake : 60) : STAKE[kind];
-  if (S.balance < stake) { log('餘額不足', 'b'); return; }
+  if (S.balance < stake) return fail('餘額不足');
   const key = plateKey(kind, types);
   let p = S.plates.find(x => x.key === key);
   // 特殊壽司盤：每人限 1 皿，賠付在老闆SP 抽選
   if (kind === 'shun') {
-    if (p) { log('特殊壽司每人限 1 盤', 'b'); return; }
+    if (p) return fail('特殊壽司每人限 1 盤');
     const w = { 60: T.sp.shun60, 120: T.sp.shun120, 240: T.sp.shun240 }[stake] || T.sp.shun60;
     S.plates.push({ key, kind, types: types.slice(), count: 1, mult: w / stake, per: w, stake, free: false, result: null });
     S.balance -= stake; S.betSum += stake; S.totalBet += stake;
-    log(`押特殊壽司 ${SUSHI[types[0]].name}（${stake} 枚）→ 只在老闆SP 抽選，中了 +${w} 枚`, 'b');
-    refreshAll(); return;
+    log(`押特殊壽司 ${SUSHI[types[0]].name}（${stake} 枚）`);
+    refreshAll(); return true;
   }
   const mult = multOf(kind, types);
   const per = Math.round(stake * mult);
   if (p) {
-    if (p.count >= T.econ.maxPlates) { log(`${KIND_NAME[kind]} 這個組合已達 ${T.econ.maxPlates} 盤上限`, 'b'); return; }
+    if (p.count >= T.econ.maxPlates) return fail(`這個組合已達 ${T.econ.maxPlates} 盤上限`);
     if (per * (p.count + 1) > T.econ.plateCap) {
-      log(`當選額上限：這盤累積可贏 ${per * p.count} 枚，再加押會超過 ${T.econ.plateCap} 枚`, 'b'); return;
+      return fail(`當選額上限：再加押會超過 ${fmt(T.econ.plateCap)} 枚`);
     }
     p.count++;
   } else {
-    if (per > T.econ.plateCap) { log('這個組合單盤賠付就超過當選額上限，不能押', 'b'); return; }
+    if (per > T.econ.plateCap) return fail('這個組合單盤賠付就超過當選額上限');
     p = { key, kind, types: types.slice(), count: 1, mult, per, stake, free: false, result: null };
     // FREE CHOICE：只有三貫與五貫有機會取得
     if (kind !== 'maru' && Math.random() < T.prob.freeChance) p.free = true;
     S.plates.push(p);
-    if (p.free) log(`✨ ${KIND_NAME[kind]} 取得 FREE CHOICE`, 'w');
+    if (p.free) log(`✨ ${KIND_NAME[kind]} 取得 FREE CHOICE`);
   }
   S.balance -= stake; S.betSum += stake; S.totalBet += stake;
+  refreshAll();
+  return true;
+}
+
+/* 一次加 n 盤：加到不能加為止，並說明停在哪 */
+function addPlates(kind, types, n) {
+  S.lastFail = '';
+  let got = 0;
+  for (let i = 0; i < n; i++) {
+    if (!addPlate(kind, types, true)) break;
+    got++;
+  }
+  if (got < n) notice(`只加了 ${got} 盤 — ${S.lastFail}`);
   refreshAll();
 }
 
@@ -1760,6 +1817,63 @@ function draw() {
 const PHASE_NAME = { BET: '押注中', DRAW: '抽球中', FREE: 'FREE CHOICE', SP: '老闆SP', FISH: '漁', SETTLE: '結算完成' };
 const fmt = n => Math.round(n).toLocaleString('en-US');
 
+/* ============ 我押注的壽司（轉盤上方）============
+   實機上玩家自己押了什麼會一直看得到，開中就亮起來——這裡照同樣的邏輯做。 */
+function renderMyBets() {
+  const box = $('myBets');
+  const cnt = new Map();                       // 壽司種類 → 押了幾盤
+  S.plates.forEach(p => p.types.forEach(t => cnt.set(t, (cnt.get(t) || 0) + p.count)));
+  if (!cnt.size) { box.className = 'mybets'; box.innerHTML = ''; return; }
+  box.className = 'mybets on';
+  const items = [...cnt.entries()].sort((a, b) => b[1] - a[1]);
+  box.innerHTML = '<span class="mb-lb">我押注的壽司</span>' + items.map(([t, n]) => {
+    const hit = S.hitTypes.has(t) || S.plates.some(p => p.freeUsed === t);
+    return `<span class="mb${hit ? ' hit' : ''}">${iconTag(t, 24)}${SUSHI[t].name}` +
+      `<span class="mb-n">${n}盤</span>${hit ? ' ✓' : ''}</span>`;
+  }).join('');
+}
+
+/* ============ 我的座位：依盤數堆起來的壽司盤 ============
+   實機是把押注做成一疊實體壽司盤放在自己的位子上，盤子顏色分價位。 */
+const PLATE_CLR = { maru: '', geta: 'red', funa: 'gold', shun: 'gold' };
+function renderSeat() {
+  const box = $('seat');
+  const total = S.plates.reduce((a, p) => a + p.count, 0);
+  $('seatTotal').textContent = total + ' 盤';
+  if (!S.plates.length) {
+    box.innerHTML = '<div class="hint" style="margin:6px 0 0">還沒押注 — 選壽司後按「＋1 盤 / ＋10 盤」，盤子會堆在這裡。</div>';
+    return;
+  }
+  box.innerHTML = '';
+  S.plates.forEach(p => {
+    const done = p.types.every(t => isHit(p, t));
+    const res = p.result == null
+      ? (p.kind === 'shun' ? '<span class="sh-pay">老闆SP 抽選</span>' : `<span class="sh-pay">單盤 ${fmt(p.per)}</span>`)
+      : (p.result ? `<span class="sh-won">+${fmt(p.result)}</span>` : '<span class="sh-lost">未中</span>');
+    const g = document.createElement('div');
+    g.className = 'seat-grp';
+    g.innerHTML = `<div class="seat-head"><b>${KIND_NAME[p.kind]}</b>×${p.count} 盤　押 ${fmt(p.stake * p.count)}` +
+      `${p.free ? ' <span class="free">FREE</span>' : ''}${res}</div>`;
+    const st = document.createElement('div');
+    st.className = 'stack';
+    const shown = Math.min(p.count, 12);   // 疊到 12 盤高，再多就維持這個高度
+    st.style.height = (28 + (shown - 1) * 4) + 'px';   // 盤子少就不要留一堆空白
+    for (let i = 0; i < shown; i++) {
+      const d = document.createElement('div');
+      d.className = 'pl ' + (PLATE_CLR[p.kind] || '');
+      d.style.bottom = (i * 4) + 'px';
+      d.style.left = (i * 2) + 'px';
+      d.style.zIndex = String(i + 1);
+      if (i === shown - 1 && done) d.style.boxShadow = '0 0 14px rgba(110,224,164,.75), 0 2px 3px rgba(0,0,0,.45)';
+      d.innerHTML = p.types.map(t =>
+        `<span style="opacity:${isHit(p, t) ? 1 : .42}">${iconTag(t, 20)}</span>`).join('');
+      st.appendChild(d);
+    }
+    g.appendChild(st);
+    box.appendChild(g);
+  });
+}
+
 /* 押注倒數（BET）／下一局倒數（SETTLE）：每幀更新，不進 refreshAll 以免整頁重畫 */
 function updateCd() {
   const st = $('cdStat'), lb = st.firstElementChild, b = $('betCd');
@@ -1839,25 +1953,22 @@ function refreshAll() {
       ? `　→　單盤賠付 <b style="color:#ffa9d0">${Math.round(STAKE[S.kind] * multOf(S.kind, S.selected))}</b> 枚（×${multOf(S.kind, S.selected).toFixed(1)}）`
       : '');
   area.appendChild(h);
+  const row = document.createElement('div'); row.className = 'row'; row.style.marginTop = '4px';
   const b = document.createElement('button');
   b.className = 'btn pri';
-  b.innerHTML = `＋ 押 ${KIND_NAME[S.kind]}（${STAKE[S.kind]} 枚／盤）`;
+  b.innerHTML = `＋1 盤（${STAKE[S.kind]} 枚）`;
   b.disabled = !okCount || S.phase !== 'BET';
   b.onclick = () => addPlate(S.kind, S.selected);   // 刻意不清空選取，可連按累加盤數
-  area.appendChild(b);
+  const b10 = document.createElement('button');
+  b10.className = 'btn pri';
+  b10.innerHTML = `＋10 盤（${STAKE[S.kind] * 10} 枚）`;
+  b10.disabled = !okCount || S.phase !== 'BET';
+  b10.onclick = () => addPlates(S.kind, S.selected, 10);
+  row.append(b, b10);
+  area.appendChild(row);
 
-  // 盤清單
-  const tb = document.querySelector('#plateTable tbody'); tb.innerHTML = '';
-  S.plates.forEach(p => {
-    const tr = document.createElement('tr');
-    const res = p.result == null ? '—' : (p.result ? `<span class="won">+${p.result}</span>` : '<span class="lost">未中</span>');
-    tr.innerHTML = `<td>${KIND_NAME[p.kind]}${p.free ? ' <span class="free">FREE</span>' : ''}</td>` +
-      `<td>${p.kind === 'shun'
-        ? iconTag(p.types[0], 22) + SUSHI[p.types[0]].name + '（老闆SP 抽選）'
-        : p.types.map(t => (isHit(p, t) ? '✅' : '⬜') + iconTag(t, 20) + SUSHI[t].name + (p.freeUsed === t ? '(F)' : '')).join(' ')}</td>` +
-      `<td>${p.count}</td><td>${p.stake * p.count}</td><td>${p.per} (×${p.mult.toFixed(1)})</td><td>${res}</td>`;
-    tb.appendChild(tr);
-  });
+  renderMyBets();
+  renderSeat();
 
   // 按鈕與提示
   $('clearBtn').disabled = S.phase !== 'BET' || !S.plates.length;
@@ -1871,7 +1982,9 @@ function refreshAll() {
     SP: '老闆SP — EX 球抽選中…', FISH: '漁進行中：點畫面撈魚。',
     SETTLE: '結算完成，倒數後自動進下一局。',
   };
-  $('stateHint').textContent = hintTxt[S.phase] || '';
+  const nt = S.notice && performance.now() - S.notice.at < 6000 ? S.notice : null;
+  $('stateHint').textContent = nt ? '⚠️ ' + nt.msg : (hintTxt[S.phase] || '');
+  $('stateHint').style.color = nt ? '#ffb4a2' : '';
   document.querySelectorAll('[data-force]').forEach(b => {
     b.disabled = !(S.phase === 'BET' || S.phase === 'SETTLE');
   });
@@ -2053,7 +2166,7 @@ window.__TEST__ = {
   hitProb, multOf, newBoard, addPlate, deal, nextRound,
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
   SP_ITEMS, STATE_NAME, stateMul, catchChance, betLeft, startBetPhase, endFree, stepWheel,
-  autoFreePick, HIST, missingOf,
+  autoFreePick, HIST, missingOf, addPlates, renderSeat, renderMyBets,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
   forceSP(item) {
     const free = []; for (let i = 0; i < 16; i++) if (!S.balls.includes(i)) free.push(i);
