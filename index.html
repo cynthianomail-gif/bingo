@@ -324,11 +324,20 @@
   .stack.done .pl { box-shadow: 0 0 9px rgba(110,224,164,.55); }
   .stack .pay {
     position: absolute; left: 0; right: 0; bottom: 50%; transform: translateY(50%);
-    text-align: center; font-size: 21px; font-weight: 900; letter-spacing: 1px;
+    text-align: center; line-height: 1.05;
+  }
+  .stack .pay b {
+    display: block; font-size: 21px; font-weight: 900; letter-spacing: 1px;
     color: #fff6da; font-variant-numeric: tabular-nums;
     text-shadow: 0 2px 0 #6b4a10, 0 0 12px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.9);
   }
-  .stack.done .pay { color: #d6ffe9; text-shadow: 0 2px 0 #14512f, 0 0 12px rgba(0,0,0,.9); }
+  .stack .pay i {
+    display: block; margin-top: 1px; font-style: normal; font-size: 9px; font-weight: 700;
+    letter-spacing: .5px; color: #ffe6b3; font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 2px rgba(0,0,0,.95), 0 0 6px rgba(0,0,0,.95);
+  }
+  .stack.done .pay b { color: #d6ffe9; text-shadow: 0 2px 0 #14512f, 0 0 12px rgba(0,0,0,.9); }
+  .stack.done .pay i { color: #b8f5d6; }
   /* ---- 印章卡（スタンプカード）---- */
   .stampbox { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.07); }
   .sb-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 11.5px; color: var(--muted); }
@@ -530,7 +539,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'A9';
+const APP_BUILD = 'B1';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -2173,7 +2182,8 @@ function renderSeat() {
       (p.free ? '<div><span class="free-badge">FREE</span></div>' : '') +
       '<div class="tiles">' + p.types.map(t =>
         `<span class="tile ${isHit(p, t) ? 'on' : 'off'}" title="${SUSHI[t].name}">${iconTag(t, 26)}</span>`).join('') + '</div>' +
-      `<div class="seat-head"><b>${KIND_NAME[p.kind]}</b>×${p.count} 盤　押 ${fmt(p.stake * p.count)}${res}</div>`;
+      `<div class="seat-head"><b>${KIND_NAME[p.kind]}</b>×${p.count} 盤　押 ${fmt(p.stake * p.count)}` +
+      (p.kind === 'shun' ? '' : `　單盤 ${fmt(p.per)}`) + `${res}</div>`;
 
     // 右：一疊碟子，正面印 BINGO得分
     const st = document.createElement('div');
@@ -2190,7 +2200,8 @@ function renderSeat() {
     }
     const pv = document.createElement('div');
     pv.className = 'pay'; pv.style.zIndex = '99';
-    pv.textContent = fmt(pay);
+    // 疊子上印的是「整疊一起中」的合計（照實機：1972 / 1998 那個數字）
+    pv.innerHTML = `<b>${fmt(pay)}</b><i>BINGO得分${p.kind === 'shun' ? '' : `　${fmt(p.per)}×${p.count}`}</i>`;
     st.appendChild(pv);
 
     g.append(col, st);
