@@ -459,6 +459,16 @@
   .odds.wait { border-color: var(--line); background: #0e1729; }
   .odds.wait .od-v { font-size: 13px; color: var(--muted-2); text-shadow: none; }
 
+  /* 押注面板 ↔ 魚機面板的切換過渡 */
+  .pane { transition: opacity .2s ease, transform .2s ease; }
+  .pane.pane-out { opacity: 0; transform: translateY(-8px); }
+  .pane.pane-in { opacity: 0; transform: translateY(10px); }
+  .fp-title {
+    margin: 0 0 8px; font-size: 15px; font-weight: 800; letter-spacing: .5px; color: #a5e2ff;
+  }
+  .fp-stats { display: flex; gap: 8px; }
+  .fp-stats .stat { flex: 1; }
+
   .hint { font-size: 10.5px; color: var(--muted-2); line-height: 1.6; margin: 6px 0; }
   .kv { padding: 5px 0; }
   .sub { margin-bottom: 8px; }
@@ -512,35 +522,39 @@
         <div id="toast"><div class="toast-in" id="toastIn"></div></div>
       </div>
 
-      <!-- 魚機控制條（魚機接管轉盤時才出現） -->
-      <div id="fishBar" class="evt sea">
-        <div class="row" style="margin:0">
-          <h3 id="fishTitle" style="margin:0">🎣 漁</h3>
-          <div class="stat" style="min-width:62px"><span>秒數</span><b id="fishTime">30</b></div>
-          <div class="stat" style="min-width:76px"><span>本次收支</span><b id="fishNet">0</b></div>
-          <button class="btn" id="wNet">🕸️ 網（<span id="cNet">10</span>）</button>
-          <button class="btn on" id="wGrab">🤏 單抓（<span id="cGrab">2</span>）</button>
-          <button class="btn" id="fishEnd">結束</button>
-        </div>
-        <div class="hint" id="fishHint" style="margin-bottom:0"></div>
-      </div>
-
     </div>
   </div>
 
   <!-- ===== 右欄：押注 ===== -->
   <div class="col right">
     <div class="card">
-      <div class="tabs">
-        <div class="tab active" data-kind="maru">圓盤<i>3 枚／1~2 種</i></div>
-        <div class="tab" data-kind="geta">三貫<i>5 枚／3 種</i></div>
-        <div class="tab" data-kind="funa">五貫<i>10 枚／5 種</i></div>
+      <!-- 押注面板／魚機控制面板在同一個位置互換（漁的時候右邊變成魚機控制） -->
+      <div id="betPane" class="pane">
+        <div class="tabs">
+          <div class="tab active" data-kind="maru">圓盤<i>3 枚／1~2 種</i></div>
+          <div class="tab" data-kind="geta">三貫<i>5 枚／3 種</i></div>
+          <div class="tab" data-kind="funa">五貫<i>10 枚／5 種</i></div>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div id="shunArea"></div>
+        <div id="betArea"></div>
+        <div class="row">
+          <button class="btn" id="clearBtn">清除押注</button>
+        </div>
       </div>
-      <div class="chips" id="chips"></div>
-      <div id="shunArea"></div>
-      <div id="betArea"></div>
-      <div class="row">
-        <button class="btn" id="clearBtn">清除押注</button>
+
+      <div id="fishPane" class="pane" style="display:none">
+        <h3 id="fishTitle" class="fp-title">🎣 漁</h3>
+        <div class="fp-stats">
+          <div class="stat"><span>剩餘秒數</span><b id="fishTime">30</b></div>
+          <div class="stat"><span>本次收支</span><b id="fishNet">0</b></div>
+        </div>
+        <div class="row" style="margin-top:9px">
+          <button class="btn" id="wNet">🕸️ 網（<span id="cNet">20</span>）</button>
+          <button class="btn on" id="wGrab">🤏 單抓（<span id="cGrab">3</span>）</button>
+          <button class="btn" id="fishEnd">結束漁</button>
+        </div>
+        <div class="hint" id="fishHint" style="margin-bottom:0"></div>
       </div>
     </div>
 
@@ -584,7 +598,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'B6';
+const APP_BUILD = 'B7';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -1093,6 +1107,19 @@ function deal() {
   startFx(() => dropBall(0));
 }
 
+/* 右欄面板互換（押注 ↔ 魚機），帶一個小淡入淡出，不要瞬切 */
+function swapPane(toFish) {
+  const out = toFish ? $('betPane') : $('fishPane');
+  const inn = toFish ? $('fishPane') : $('betPane');
+  if (inn.style.display !== 'none') return;          // 已經是這個面板了
+  out.classList.add('pane-out');
+  setTimeout(() => {
+    out.style.display = 'none'; out.classList.remove('pane-out');
+    inn.style.display = ''; inn.classList.add('pane-in');
+    requestAnimationFrame(() => requestAnimationFrame(() => inn.classList.remove('pane-in')));
+  }, 200);
+}
+
 /* 畫面中央的轉場字幕（開球、老闆SP…）：實機在事件發生前都會先喊一次 */
 function bannerFx(main, sub, cls, ms, cb) {
   const el = $('startFx');
@@ -1314,7 +1341,7 @@ function settle() {
 function finishRound() {
   S.plates.forEach(p => { if (p.result == null) p.result = 0; });
   S.phase = 'SETTLE';
-  $('fishBar').style.display = 'none';
+  swapPane(false);
   $('stage').classList.remove('fishing');   // 轉盤回來
   log(`本局結束：贏分 ${S.winSum} 枚（押注 ${S.betSum}）`, S.winSum > S.betSum ? 'w' : 'd');
   histDone(S.winSum);
@@ -1440,7 +1467,7 @@ function startFishing(mode) {
   FISH.mode = mode; FISH.list = []; FISH.weapon = 'grab';
   FISH.lastSpawn = 0; FISH.shunSpawned = false; FISH.ripple = null; FISH.hook = null;
   FISH.spent = 0; FISH.gained = 0; FISH.over = true;   // 轉場結束才開始算時間
-  $('fishBar').style.display = 'block';
+  swapPane(true);
   $('fishTitle').textContent = mode === 'dairyo' ? '🌊 大漁 — 魚群密度提升'
     : mode === 'shunryo' ? '✨ 特殊壽司漁 — 會出現特殊壽司魚' : '🎣 漁';
   $('cNet').textContent = T.fish.netCost; $('cGrab').textContent = T.fish.grabCost;
@@ -1748,10 +1775,6 @@ function drawFish(now) {
   fx.fillText('你', 0, 2);
   fx.restore();
 
-  fx.textAlign = 'left'; fx.textBaseline = 'alphabetic';
-  fx.fillStyle = 'rgba(226,232,240,.9)';
-  fx.font = '11.5px "Noto Sans TC", sans-serif';
-  fx.fillText(`${FISH.weapon === 'net' ? '🕸️ 網' : '🤏 單抓（拉扯）'}　捕獲率 ${Math.round(T.fish.catchRate * stateMul() * 100)}%／魚群 ${Math.round(T.fish.catchRateGlow * stateMul() * 100)}%　狀態：${STATE_NAME[T.fish.stateMode]}`, 10, H - 12);
 }
 
 function catchFish(f) {
@@ -2875,7 +2898,7 @@ window.__TEST__ = {
   hitProb, multOf, newBoard, addPlate, deal, nextRound,
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
   SP_ITEMS, STATE_NAME, stateMul, catchChance, betLeft, startBetPhase, endFree, stepWheel,
-  autoFreePick, HIST, missingOf, addPlates, canAddCount, roundCap, addWin, pickSlot, applyWheelScale, inReach, startTug, stepTug, fishXY, plateDone, needMap, haveOf, renderSeat, fitScreen, payRange, startFx, bannerFx, useFree, freeCands,
+  autoFreePick, HIST, missingOf, addPlates, canAddCount, roundCap, addWin, pickSlot, applyWheelScale, swapPane, inReach, startTug, stepTug, fishXY, plateDone, needMap, haveOf, renderSeat, fitScreen, payRange, startFx, bannerFx, useFree, freeCands,
   refreshAll, KIND_SIZE, STAKE, setHits, hitProb, gainStamp, renderStamps, BELT, makeBelt, pickBelt, beltAngle, refreshBeltPay, GW, GH, HD,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
   forceSP(item) {
