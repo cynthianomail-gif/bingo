@@ -138,23 +138,29 @@
   @keyframes cdBlink { 50% { opacity: .28; } }
 
   /* ---- 壽司 chip ---- */
-  .chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 6px 0 4px; }
-  .slot {
-    display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 2px 4px;
-    border-radius: 10px; cursor: pointer; user-select: none;
+  /* 一種一整排：左邊種類名＋賠率，右邊本局有幾貫就排幾格 */
+  .chips { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 4px; }
+  .srow {
+    display: flex; align-items: center; gap: 7px; padding: 3px 6px; border-radius: 10px;
+    border: 1px solid transparent; background: rgba(255,255,255,.025);
+  }
+  .srow.on { border-color: var(--gold-dim); background: rgba(233,181,63,.08); }
+  .sr-lb { display: flex; align-items: center; gap: 5px; flex: 0 0 104px; font-size: 11.5px; }
+  .sr-lb b { font-weight: 700; color: #d7e2f7; }
+  .sr-lb i { font-style: normal; margin-left: auto; font-size: 10.5px; font-weight: 800; color: #ffa9d0; }
+  .sr-tiles { display: flex; gap: 4px; flex-wrap: wrap; }
+  .sq {
+    display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
     border: 1px solid var(--line); background: linear-gradient(180deg, #1c2742, #121a2e);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
     transition: transform .1s, border-color .15s, box-shadow .15s;
   }
-  .slot:hover { transform: translateY(-2px); border-color: var(--sky); }
-  .slot b { font-size: 10.5px; font-weight: 700; color: #d7e2f7; line-height: 1.1; }
-  .slot .mul { font-size: 9.5px; font-weight: 800; color: #ffa9d0; font-variant-numeric: tabular-nums; }
-  .slot .mul.dup { color: var(--muted-2); font-weight: 400; }
-  .slot.sel {
+  .sq:hover { transform: translateY(-2px); border-color: var(--sky); }
+  .sq.sel {
     border-color: var(--gold); background: linear-gradient(180deg, #3c2d0c, #241a06);
-    box-shadow: inset 0 0 0 1px var(--gold), 0 0 14px rgba(233,181,63,.3);
+    box-shadow: inset 0 0 0 1px var(--gold), 0 0 12px rgba(233,181,63,.35);
   }
-  .slot.hit { box-shadow: inset 0 0 0 2px var(--jade), 0 0 12px rgba(55,165,106,.3); }
+  .sq.hit { box-shadow: inset 0 0 0 2px var(--jade), 0 0 10px rgba(55,165,106,.35); }
   .chip {
     display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px; border-radius: 999px;
     border: 1px solid var(--line); background: linear-gradient(180deg, #1c2742, #121a2e);
@@ -578,7 +584,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'B5';
+const APP_BUILD = 'B6';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -663,6 +669,10 @@ const DEF = {
     //  → 一般魚的期望值必須低於成本，賺頭集中在大漁的發光魚群
     catchRate:     0.35,  // 一般魚的捕獲率
     catchRateGlow: 0.60,  // 發光魚群的捕獲率（攻略：魚群比一般魚容易獲得）
+    reachDeg:     42,     // 自己面前可撈的角度（左右各 N 度）
+    tugMs:       380,     // 拉扯每幾毫秒扣一次錢
+    tugCatch:   0.32,     // 每次拉扯「拉上來」的機率（會乘上內部狀態）
+    tugEscape:  0.18,     // 每次拉扯「被掙脫」的機率
     stateMode:     1,     // 內部狀態 0=回收期 1=普通 2=開放期
     openMul:       1.15,  // 開放期的捕獲率乘數
     recMul:        0.70,  // 回收期的捕獲率乘數
@@ -724,6 +734,10 @@ const TUNE_META = {
     ['fishMax', '一般魚上限', 5, 150, 1],
     ['schoolMin', '魚群下限', 5, 100, 1],
     ['schoolMax', '魚群上限', 10, 300, 5],
+    ['reachDeg', '可撈角度（±度）', 10, 180, 2],
+    ['tugMs', '拉扯間隔 ms', 120, 1200, 20],
+    ['tugCatch', '拉扯 拉上來機率', 0.02, 0.9, 0.01],
+    ['tugEscape', '拉扯 被掙脫機率', 0.02, 0.9, 0.01],
     ['catchRate', '捕獲率 一般魚', 0.05, 1, 0.01],
     ['catchRateGlow', '捕獲率 發光魚群', 0.05, 1, 0.01],
     ['stateMode', '內部狀態', 0, 2, 1, ['回收期', '普通', '開放期']],
@@ -768,6 +782,8 @@ const S = {
   pendingShun: null,     // 漁中撈到的特殊壽司魚 → 下一局可押
   stamps: 0,             // 印章數（跨局累積）
   stampPot: 0,           // 距離下一個印章還差多少押注額
+  wheelK: 0,             // 輪盤大小 0=押注（有迴轉帶）1=抽選（放大滿版）
+  wheelKT: 0,            // 目標值
   wheelRot: 0,           // 輪盤自轉角度（弧度），持續累加
   rotT: 0,               // 上一次推進自轉的時間戳
   betEndAt: 0,           // 押注截止時間（performance.now()）
@@ -1069,6 +1085,7 @@ function deal() {
   // 5 顆球落在互不相同的 5 格
   S.drawOrder = shuffle([...Array(16).keys()]).slice(0, 5);
   histNew(S.round);
+  S.wheelKT = 1; FX.expand = performance.now();     // 迴轉帶收掉、輪盤放大
   log(S.plates.length
     ? `第 ${S.round} 局開始抽球（押注 ${S.betSum} 枚）`
     : `第 ${S.round} 局開球 — 本局未押注，空過`);
@@ -1098,6 +1115,7 @@ function dropBall(i) {
   const targetAngle = pocketAngleLocal(idx);
   S.ballAnim = { t0: performance.now(), idx, from: targetAngle + Math.PI * 2 * T.rhythm.spinTurns, to: targetAngle, i };
   const step = now => {
+    if (!S.ballAnim || S.phase !== 'DRAW') return;    // 局被外部重置（換局／強開）就別再畫
     const k = Math.min(1, (now - S.ballAnim.t0) / T.rhythm.ballTravel);
     const e = 1 - Math.pow(1 - k, 3);   // ease-out
     S.ballAnim.cur = S.ballAnim.from + (S.ballAnim.to - S.ballAnim.from) * e;
@@ -1188,7 +1206,7 @@ function endFree() {
 
 /* ============ 結算 ============ */
 /* ============ 演出：金幣噴發、盤面發光、中獎快報 ============ */
-const FX = { coins: [], glow: 0, glowT: 0, spReveal: 0 };
+const FX = { coins: [], glow: 0, glowT: 0, spReveal: 0, expand: 0 };
 
 function burstCoins(n, cxp, cyp) {
   for (let i = 0; i < n; i++) {
@@ -1311,6 +1329,7 @@ function nextRound() {
   S.round++; S.plates = []; S.selected = []; S.betSum = 0; S.winSum = 0;
   S.balls = []; S.hitTypes = new Set(); S.hitCount = {}; S.spHit = false;
   S.spItems = null; S.spFree = null; S.exBall = null;
+  S.wheelKT = 0;                                     // 回到押注：輪盤縮小、迴轉帶回來
   startBetPhase();
   newBoard(); refreshAll();
   log(`── 第 ${S.round} 局 ──`, 'd');
@@ -1359,6 +1378,7 @@ function dropEX() {
   const a = pocketAngleLocal(idx);
   S.exBall = { idx, from: a + Math.PI * 2 * T.rhythm.spinTurns, to: a, t0: performance.now(), cur: null };
   const step = now => {
+    if (!S.exBall || S.phase !== 'SP') return;
     const k = Math.min(1, (now - S.exBall.t0) / (T.rhythm.ballTravel * 1.4));
     const e = 1 - Math.pow(1 - k, 3);
     S.exBall.cur = S.exBall.from + (S.exBall.to - S.exBall.from) * e;
@@ -1397,7 +1417,7 @@ function resolveSP(idx) {
 }
 
 /* ============ 漁（撈魚小遊戲） ============ */
-const FISH = { list: [], mode: 'ryo', weapon: 'grab', endAt: 0, raf: null, lastSpawn: 0, shunSpawned: false, ripple: null, spent: 0, gained: 0 };
+const FISH = { list: [], mode: 'ryo', weapon: 'grab', endAt: 0, raf: null, lastSpawn: 0, shunSpawned: false, ripple: null, spent: 0, gained: 0, over: true, hook: null };
 const fcv = $('fish'), fx = fcv.getContext('2d');
 
 /* 命中不保證：發射要付費，撈得到與否由捕獲率 × 內部狀態決定，失手是純損失。
@@ -1418,7 +1438,7 @@ function spook(f, now) {          // 失手：魚受驚彈開
 function startFishing(mode) {
   S.phase = 'FISH';
   FISH.mode = mode; FISH.list = []; FISH.weapon = 'grab';
-  FISH.lastSpawn = 0; FISH.shunSpawned = false; FISH.ripple = null;
+  FISH.lastSpawn = 0; FISH.shunSpawned = false; FISH.ripple = null; FISH.hook = null;
   FISH.spent = 0; FISH.gained = 0; FISH.over = true;   // 轉場結束才開始算時間
   $('fishBar').style.display = 'block';
   $('fishTitle').textContent = mode === 'dairyo' ? '🌊 大漁 — 魚群密度提升'
@@ -1427,14 +1447,14 @@ function startFishing(mode) {
   $('fishTime').textContent = T.fish.duration.toFixed(1);
   $('fishNet').textContent = '0';
   $('fishHint').innerHTML =
-    `發射就扣錢，<b>瞄到也不一定撈得到</b>：一般魚 <b>${Math.round(T.fish.catchRate * stateMul() * 100)}%</b>／` +
-    `發光魚群 <b>${Math.round(T.fish.catchRateGlow * stateMul() * 100)}%</b>（內部狀態：${STATE_NAME[T.fish.stateMode]} ×${stateMul().toFixed(2)}）。` +
-    `　🔴 圈＝盤上還缺的種類，撈到就補齊 BINGO；其他魚 → 得該魚的值。`;
+    `魚繞著漁場轉，<b>只撈得到自己面前那一區</b>。單抓＝勾住後拉扯，每 ${(T.fish.tugMs / 1000).toFixed(1)} 秒扣 ` +
+    `<b>${T.fish.grabCost}</b> 枚直到拉上來或被掙脫；網一次 <b>${T.fish.netCost}</b> 枚、範圍內一次判定。` +
+    `　🔴 圈＝盤上還缺的種類（狀態：${STATE_NAME[T.fish.stateMode]}）`;
   log(`進入 ${$('fishTitle').textContent}（${T.fish.duration} 秒・${STATE_NAME[T.fish.stateMode]}）`);
   refreshAll();
   // 轉場：喊一聲 → 畫面切成海面 → 才開始計時
   const title = $('fishTitle').textContent.replace(/ —.*/, '');
-  bannerFx(title, '點畫面撈魚', 'sea', T.rhythm.fishFx, () => {
+  bannerFx(title, '只撈得到自己面前的魚', 'sea', T.rhythm.fishFx, () => {
     $('stage').classList.add('fishing');
     FISH.endAt = performance.now() + T.fish.duration * 1000;
     FISH.over = false;
@@ -1448,34 +1468,48 @@ function neededTypes() {
   return s;
 }
 
+/* ============ 漁場：圓形，魚繞著圈游，玩家坐在下方 ============ */
+const SEAT_ANG = Math.PI / 2;              // 玩家的位置（畫面下方）
+const R_SEA = 268;                          // 漁場半徑
+function angDiff(a, b) {
+  let d = (a - b) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+function inReach(ang) { return Math.abs(angDiff(ang, SEAT_ANG)) <= T.fish.reachDeg * Math.PI / 180; }
+function fishR(f) { return f.rad + Math.sin(f.wobPh) * f.wobAmp; }
+function fishXY(f) { const r = fishR(f); return [CX + Math.cos(f.ang) * r, CY + Math.sin(f.ang) * r]; }
+function seatXY() { return [CX + Math.cos(SEAT_ANG) * (R_SEA - 6), CY + Math.sin(SEAT_ANG) * (R_SEA - 6)]; }
+
 function spawnFish(now) {
   const need = [...neededTypes()];
   const mk = (opt) => {
-    const fromLeft = Math.random() < 0.5;
     const type = opt.type != null ? opt.type
       : (need.length && Math.random() < 0.3 ? pick(need)
         : (Math.random() < 0.6 ? pick(S.kinds) : pick(SUSHI).id));
+    const dir = Math.random() < 0.5 ? 1 : -1;
     return {
-      x: fromLeft ? -30 : GW + 30,
-      y: 40 + Math.random() * (GH - 80),
-      vx: (fromLeft ? 1 : -1) * (40 + Math.random() * 70) * (opt.school ? 0.7 : 1),
-      phase: Math.random() * 6.28, amp: 6 + Math.random() * 14,
-      r: opt.school ? 15 : (opt.shun ? 22 : 13 + Math.random() * 6),
+      ang: opt.ang != null ? opt.ang : Math.random() * Math.PI * 2,
+      rad: opt.rad != null ? opt.rad : 80 + Math.random() * 150,
+      av: opt.av != null ? opt.av : dir * (0.16 + Math.random() * 0.2),   // 角速度 rad/s
+      wobPh: Math.random() * 6.28, wobAmp: 3 + Math.random() * 7,
+      r: opt.school ? 15 : (opt.shun ? 22 : 13 + Math.random() * 5),
       type, school: !!opt.school, shun: !!opt.shun, tier: opt.tier || 0,
       value: opt.shun ? 0 : (opt.school
         ? Math.round(T.fish.schoolMin + Math.random() * (T.fish.schoolMax - T.fish.schoolMin))
         : Math.round(T.fish.fishMin + Math.random() * (T.fish.fishMax - T.fish.fishMin))),
-      dead: false, born: now,
+      dead: false, born: now, until: now + (11 + Math.random() * 9) * 1000,
     };
   };
   if (FISH.mode === 'dairyo' && Math.random() < 0.4) {
-    // 魚群：一次一叢會發光的高價魚
+    // 魚群：同一條軌道上一串會發光的高價魚
     const base = mk({ school: true });
     const n = 4 + rnd(4);
     for (let i = 0; i < n; i++) {
-      const f = mk({ school: true, type: base.type });
-      f.x = base.x - Math.sign(base.vx) * i * 34; f.y = base.y + (i % 2 ? -1 : 1) * (i * 6);
-      f.vx = base.vx; FISH.list.push(f);
+      const f = mk({ school: true, type: base.type, rad: base.rad, av: base.av,
+                     ang: base.ang - Math.sign(base.av) * i * 0.11 });
+      FISH.list.push(f);
     }
   } else {
     FISH.list.push(mk({}));
@@ -1484,8 +1518,43 @@ function spawnFish(now) {
   if (FISH.mode === 'shunryo' && !FISH.shunSpawned && now > FISH.endAt - (T.fish.duration * 1000 - 2500)) {
     FISH.shunSpawned = true;
     FISH.list.push(mk({ shun: true, tier: pick([60, 120, 240]) }));
-    log('✨ 特殊壽司魚出現了！撈到牠，下一局就能押特殊壽司', 'b');
+    log('✨ 特殊壽司魚出現了！撈到牠，下一局就能押特殊壽司');
   }
+}
+
+/* ---- 單抓＝拉扯：勾住後每 tugMs 扣一次錢，直到拉上來或被掙脫 ---- */
+function tugCatchP(f) {
+  const boost = f.school ? T.fish.catchRateGlow / T.fish.catchRate : 1;
+  return Math.max(0, Math.min(0.95, T.fish.tugCatch * boost * stateMul()));
+}
+function startTug(f, now) {
+  FISH.hook = { f, t0: now, last: now - T.fish.tugMs, ticks: 0, tension: 0 };
+}
+function stepTug(now) {
+  const h = FISH.hook;
+  if (!h) return;
+  const f = h.f;
+  if (f.dead || !FISH.list.includes(f)) { FISH.hook = null; return; }
+  if (now - h.last < T.fish.tugMs) return;
+  h.last = now;
+  const cost = T.fish.grabCost;
+  if (S.balance < cost) { FISH.hook = null; notice('餘額不足，線放掉了'); return; }
+  S.balance -= cost; S.betSum += cost; S.totalBet += cost; FISH.spent += cost;
+  h.ticks++;
+  const pc = tugCatchP(f), pe = T.fish.tugEscape;
+  const r = Math.random();
+  if (r < pc) {                       // 拉上來了
+    catchFish(f);
+    FISH.hook = null;
+  } else if (r < pc + pe) {           // 被掙脫
+    spook(f, now);
+    FISH.hook = null;
+    log(`🎣 被掙脫（這次拉扯花了 ${h.ticks * cost} 枚）`);
+    notice(`被掙脫！這次拉扯花了 ${h.ticks * cost} 枚`);
+  } else {
+    h.tension = Math.min(1, h.tension + 0.22);   // 還在拉
+  }
+  refreshAll();
 }
 
 function fishLoop(now) {
@@ -1497,15 +1566,16 @@ function fishLoop(now) {
   el.textContent = (net > 0 ? '+' : '') + fmt(net);
   el.style.color = net >= 0 ? 'var(--jade-2)' : '#ff8b8b';
   const rate = T.fish.spawnMs / (FISH.mode === 'dairyo' ? T.fish.dairyoMul : 1);
-  // 有上限：擠滿了就先不生成，畫面才看得清
   if (now - FISH.lastSpawn > rate && FISH.list.length < T.fish.maxFish) { FISH.lastSpawn = now; spawnFish(now); }
   const dt = 1 / 60;
+  const hooked = FISH.hook && FISH.hook.f;
   FISH.list.forEach(f => {
-    f.x += f.vx * dt;
-    f.phase += dt * 2.2;
-    f.dy = Math.sin(f.phase) * f.amp;
+    const slow = f === hooked ? 0.25 : (f.spooked ? 2.4 : 1);
+    f.ang += f.av * dt * slow;
+    f.wobPh += dt * (f === hooked ? 9 : 2.2);
   });
-  FISH.list = FISH.list.filter(f => !f.dead && f.x > -60 && f.x < GW + 60);
+  FISH.list = FISH.list.filter(f => !f.dead && now < f.until);
+  stepTug(now);
   drawFish(now);
   if (left <= 0) { endFishing(); return; }
   FISH.raf = requestAnimationFrame(fishLoop);
@@ -1515,91 +1585,128 @@ function drawFish(now) {
   const W = GW, H = GH;
   fx.setTransform(HD, 0, 0, HD, 0, 0);
   fx.clearRect(0, 0, W, H);
-  // 海水：上亮下深
-  const g = fx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#0b4a6f'); g.addColorStop(.55, '#08304a'); g.addColorStop(1, '#04121f');
-  fx.fillStyle = g; fx.fillRect(0, 0, W, H);
-  // 斜射光束
+  // 檯面
+  fx.fillStyle = '#080d19'; fx.fillRect(0, 0, W, H);
+
   fx.save();
-  for (let i = 0; i < 5; i++) {
-    const x = ((i * 137 + now / 60) % (W + 260)) - 130;
-    fx.beginPath();
-    fx.moveTo(x, -10); fx.lineTo(x + 52, -10); fx.lineTo(x + 128, H + 10); fx.lineTo(x + 42, H + 10);
-    fx.closePath();
-    fx.fillStyle = 'rgba(125,211,252,.045)'; fx.fill();
+  fx.beginPath(); fx.arc(CX, CY, R_SEA, 0, 6.28); fx.clip();
+  // 海水：中心亮、外圈深
+  const g = fx.createRadialGradient(CX, CY - 40, 30, CX, CY, R_SEA);
+  g.addColorStop(0, '#0e5c86'); g.addColorStop(.55, '#08304a'); g.addColorStop(1, '#04121f');
+  fx.fillStyle = g; fx.fillRect(CX - R_SEA, CY - R_SEA, R_SEA * 2, R_SEA * 2);
+  // 水流：跟著轉的同心弧
+  fx.strokeStyle = 'rgba(255,255,255,.05)'; fx.lineWidth = 2;
+  for (let i = 0; i < 7; i++) {
+    const rr = 50 + i * 32;
+    const a0 = (now / 2600) * (i % 2 ? 1 : -1) + i;
+    fx.beginPath(); fx.arc(CX, CY, rr, a0, a0 + 1.5); fx.stroke();
   }
-  fx.restore();
-  // 水波紋
-  for (let i = 0; i < 4; i++) {
-    fx.strokeStyle = 'rgba(56,189,248,0.05)'; fx.lineWidth = 20;
-    fx.beginPath();
-    for (let x = 0; x <= W; x += 12) {
-      const y = 40 + i * 95 + Math.sin((x + now / 22 + i * 40) / 62) * 9;
-      x ? fx.lineTo(x, y) : fx.moveTo(x, y);
-    }
-    fx.stroke();
+  // 氣泡
+  fx.fillStyle = 'rgba(255,255,255,.12)';
+  for (let i = 0; i < 16; i++) {
+    const a = i * 0.39 + now / 5200;
+    const rr = ((now / 26 + i * 47) % (R_SEA - 30)) + 20;
+    fx.beginPath(); fx.arc(CX + Math.cos(a) * rr, CY + Math.sin(a) * rr, 1.5 + (i % 3), 0, 6.28); fx.fill();
   }
-  // 氣泡（純函數，不需要狀態）
-  for (let i = 0; i < 26; i++) {
-    const sp = 18 + (i % 7) * 9;
-    const bx = (i * 97 % W) + Math.sin((now / 900) + i) * 12;
-    const by = H - ((now / 1000 * sp + i * 53) % (H + 40));
-    const br = 1.6 + (i % 4);
-    fx.beginPath(); fx.arc(bx, by, br, 0, 6.28);
-    fx.fillStyle = 'rgba(186,230,253,.16)'; fx.fill();
-  }
-  // 海底
+
+  // 自己的可撈範圍：下方的扇形
+  const rw = T.fish.reachDeg * Math.PI / 180;
+  fx.save();
   fx.beginPath();
-  fx.moveTo(0, H);
-  for (let x = 0; x <= W; x += 20) fx.lineTo(x, H - 16 - Math.sin(x / 90) * 8);
-  fx.lineTo(W, H); fx.closePath();
-  fx.fillStyle = '#0a2033'; fx.fill();
+  fx.moveTo(CX, CY);
+  fx.arc(CX, CY, R_SEA, SEAT_ANG - rw, SEAT_ANG + rw);
+  fx.closePath();
+  const rg = fx.createRadialGradient(CX, CY, 40, CX, CY, R_SEA);
+  rg.addColorStop(0, 'rgba(125,211,252,.03)'); rg.addColorStop(1, 'rgba(125,211,252,.16)');
+  fx.fillStyle = rg; fx.fill();
+  fx.setLineDash([7, 6]); fx.lineDashOffset = -now / 90;
+  fx.strokeStyle = 'rgba(165,226,255,.6)'; fx.lineWidth = 2;
+  fx.beginPath();
+  fx.moveTo(CX, CY); fx.lineTo(CX + Math.cos(SEAT_ANG - rw) * R_SEA, CY + Math.sin(SEAT_ANG - rw) * R_SEA);
+  fx.moveTo(CX, CY); fx.lineTo(CX + Math.cos(SEAT_ANG + rw) * R_SEA, CY + Math.sin(SEAT_ANG + rw) * R_SEA);
+  fx.stroke();
+  fx.restore();
 
   const need = neededTypes();
-  // 由遠而近（y 小的先畫）
-  const sorted = FISH.list.slice().sort((a, b) => a.y - b.y);
+  const hooked = FISH.hook && FISH.hook.f;
+  const sorted = FISH.list.slice().sort((a, b) => fishXY(a)[1] - fishXY(b)[1]);
   sorted.forEach(f => {
-    const y = f.y + (f.dy || 0);
-    if (f.school || f.shun) {   // 發光魚群 / 特殊壽司魚的光暈
-      const rg = fx.createRadialGradient(f.x, y, 2, f.x, y, f.r * 2.6);
-      rg.addColorStop(0, f.shun ? 'rgba(250,204,21,.55)' : 'rgba(74,222,128,.42)');
-      rg.addColorStop(1, 'rgba(0,0,0,0)');
-      fx.fillStyle = rg;
-      fx.beginPath(); fx.arc(f.x, y, f.r * 2.6, 0, 6.28); fx.fill();
+    const [x, y] = fishXY(f);
+    const reach = inReach(f.ang);
+    fx.save();
+    if (!reach) fx.globalAlpha = 0.4;                 // 不在自己面前 → 撈不到，畫淡一點
+    if (f.school || f.shun) {
+      const rg2 = fx.createRadialGradient(x, y, 2, x, y, f.r * 2.6);
+      rg2.addColorStop(0, f.shun ? 'rgba(250,204,21,.55)' : 'rgba(74,222,128,.42)');
+      rg2.addColorStop(1, 'rgba(0,0,0,0)');
+      fx.fillStyle = rg2;
+      fx.beginPath(); fx.arc(x, y, f.r * 2.6, 0, 6.28); fx.fill();
     }
-    if (need.has(f.type)) {     // 盤上還缺的種類：脈動虛線圈
+    if (need.has(f.type)) {
       fx.save();
-      fx.setLineDash([5, 4]);
-      fx.lineDashOffset = -now / 60;
+      fx.setLineDash([5, 4]); fx.lineDashOffset = -now / 60;
       fx.strokeStyle = 'rgba(248,113,113,.95)'; fx.lineWidth = 2;
-      fx.beginPath(); fx.arc(f.x, y, f.r * 1.9 + Math.sin(now / 220) * 1.5, 0, 6.28); fx.stroke();
+      fx.beginPath(); fx.arc(x, y, f.r * 1.9 + Math.sin(now / 220) * 1.5, 0, 6.28); fx.stroke();
       fx.restore();
     }
-    drawFishShape(fx, f.x, y, f.r, f.vx >= 0 ? 1 : -1, f.type, now, { gold: f.shun });
-    // 失手：魚受驚 → 白光一閃＋冒出「跑掉了」
+    // 魚頭朝著游動方向
+    const dir = f.av >= 0 ? 1 : -1;
+    fx.save();
+    fx.translate(x, y);
+    fx.rotate(f.ang + (dir > 0 ? Math.PI / 2 : -Math.PI / 2));
+    drawFishShape(fx, 0, 0, f.r, 1, f.type, now, { gold: f.shun });
+    fx.restore();
+    if (f === hooked) {                               // 被勾住：白光顫抖
+      fx.globalAlpha = 0.85;
+      fx.strokeStyle = '#fff7d6'; fx.lineWidth = 2;
+      fx.beginPath(); fx.arc(x, y, f.r * 1.6, 0, 6.28); fx.stroke();
+    }
     if (f.spookT && now - f.spookT < 520) {
       const k = 1 - (now - f.spookT) / 520;
-      fx.save();
-      fx.globalAlpha = k * 0.85;
-      fx.fillStyle = '#fff';
-      fx.beginPath(); fx.arc(f.x, y, f.r * 1.5, 0, 6.28); fx.fill();
-      fx.globalAlpha = k;
-      fx.fillStyle = '#fca5a5'; fx.font = 'bold 12px "Noto Sans TC", sans-serif';
+      fx.globalAlpha = k * 0.85; fx.fillStyle = '#fff';
+      fx.beginPath(); fx.arc(x, y, f.r * 1.5, 0, 6.28); fx.fill();
+      fx.globalAlpha = k; fx.fillStyle = '#fca5a5';
+      fx.font = 'bold 12px "Noto Sans TC", sans-serif';
       fx.textAlign = 'center'; fx.textBaseline = 'middle';
-      fx.fillText('跑掉了！', f.x, y - f.r * 2 - (1 - k) * 14);
-      fx.restore();
+      fx.fillText('跑掉了！', x, y - f.r * 2 - (1 - k) * 14);
     }
     // 價值標籤
     const txt = f.shun ? '旬 ' + f.tier : '+' + f.value;
+    fx.globalAlpha = reach ? 1 : 0.4;
     fx.font = 'bold 11px "Noto Sans TC", sans-serif';
     const tw = fx.measureText(txt).width + 10;
     fx.fillStyle = f.shun ? 'rgba(180,83,9,.92)' : 'rgba(8,13,24,.72)';
-    roundRect(fx, f.x - tw / 2, y + f.r * 1.1, tw, 16, 8); fx.fill();
+    roundRect(fx, x - tw / 2, y + f.r * 1.1, tw, 16, 8); fx.fill();
     fx.fillStyle = f.shun ? '#fff7d6' : '#e2e8f0';
     fx.textAlign = 'center'; fx.textBaseline = 'middle';
-    fx.fillText(txt, f.x, y + f.r * 1.1 + 8);
+    fx.fillText(txt, x, y + f.r * 1.1 + 8);
+    fx.restore();
   });
-  // 出手特效：網是雙圈網格，單抓是小夾子
+
+  // 拉扯中的釣線
+  if (hooked) {
+    const [sx, sy] = seatXY();
+    const [fxp, fyp] = fishXY(hooked);
+    fx.save();
+    fx.strokeStyle = 'rgba(255,247,214,.9)'; fx.lineWidth = 2;
+    fx.beginPath();
+    fx.moveTo(sx, sy);
+    const mx = (sx + fxp) / 2 + Math.sin(now / 70) * 10, my = (sy + fyp) / 2 + Math.cos(now / 90) * 10;
+    fx.quadraticCurveTo(mx, my, fxp, fyp);
+    fx.stroke();
+    // 張力條
+    const bw = 120, bx = CX - bw / 2, by = CY + 96;
+    fx.fillStyle = 'rgba(8,13,24,.75)';
+    roundRect(fx, bx - 4, by - 4, bw + 8, 20, 8); fx.fill();
+    fx.fillStyle = '#f59e0b';
+    roundRect(fx, bx, by, bw * (0.25 + FISH.hook.tension * 0.75), 12, 6); fx.fill();
+    fx.fillStyle = '#ffe6b3'; fx.font = 'bold 11px "Noto Sans TC", sans-serif';
+    fx.textAlign = 'center'; fx.textBaseline = 'middle';
+    fx.fillText(`拉扯中… 已花 ${FISH.hook.ticks * T.fish.grabCost} 枚`, CX, by + 6);
+    fx.restore();
+  }
+
+  // 出手特效
   if (FISH.ripple) {
     const k = (now - FISH.ripple.t0) / 360;
     if (k < 1) {
@@ -1608,25 +1715,43 @@ function drawFish(now) {
       fx.globalAlpha = 1 - k;
       fx.strokeStyle = '#f8fafc'; fx.lineWidth = 3;
       fx.beginPath(); fx.arc(FISH.ripple.x, FISH.ripple.y, rr, 0, 6.28); fx.stroke();
-      if (FISH.ripple.rad > 30) {   // 網：畫網格線
+      if (FISH.ripple.rad > 30) {
         fx.lineWidth = 1.4; fx.strokeStyle = 'rgba(248,250,252,.7)';
         for (let i = -2; i <= 2; i++) {
           fx.beginPath();
-          fx.moveTo(FISH.ripple.x + i * rr / 2.4, FISH.ripple.y - rr);
-          fx.lineTo(FISH.ripple.x + i * rr / 2.4, FISH.ripple.y + rr); fx.stroke();
+          fx.moveTo(FISH.ripple.x - rr, FISH.ripple.y + i * rr / 2.5);
+          fx.lineTo(FISH.ripple.x + rr, FISH.ripple.y + i * rr / 2.5);
+          fx.stroke();
           fx.beginPath();
-          fx.moveTo(FISH.ripple.x - rr, FISH.ripple.y + i * rr / 2.4);
-          fx.lineTo(FISH.ripple.x + rr, FISH.ripple.y + i * rr / 2.4); fx.stroke();
+          fx.moveTo(FISH.ripple.x + i * rr / 2.5, FISH.ripple.y - rr);
+          fx.lineTo(FISH.ripple.x + i * rr / 2.5, FISH.ripple.y + rr);
+          fx.stroke();
         }
       }
       fx.restore();
     } else FISH.ripple = null;
   }
-  // 底部說明條
-  fx.fillStyle = 'rgba(8,13,24,.55)'; fx.fillRect(0, H - 24, W, 24);
-  fx.fillStyle = '#cbd5e1'; fx.font = '12px "Noto Sans TC", sans-serif'; fx.textAlign = 'left';
-  fx.textBaseline = 'middle';
-  fx.fillText(`${FISH.weapon === 'net' ? '🕸️ 網' : '🤏 單抓'}　捕獲率 ${Math.round(T.fish.catchRate * stateMul() * 100)}%／魚群 ${Math.round(T.fish.catchRateGlow * stateMul() * 100)}%　狀態：${STATE_NAME[T.fish.stateMode]}`, 10, H - 12);
+  fx.restore();     // 解除圓形裁切
+
+  // 漁場邊框＋自己的座位
+  fx.beginPath(); fx.arc(CX, CY, R_SEA, 0, 6.28);
+  fx.strokeStyle = '#3b4a68'; fx.lineWidth = 6; fx.stroke();
+  fx.beginPath(); fx.arc(CX, CY, R_SEA - 3, 0, 6.28);
+  fx.strokeStyle = 'rgba(251,191,36,.25)'; fx.lineWidth = 2; fx.stroke();
+  const [sx, sy] = seatXY();
+  fx.save();
+  fx.translate(sx, sy);
+  fx.fillStyle = '#e9b53f';
+  fx.beginPath(); fx.moveTo(0, -14); fx.lineTo(11, 8); fx.lineTo(-11, 8); fx.closePath(); fx.fill();
+  fx.fillStyle = '#0b1120'; fx.font = 'bold 9px "Noto Sans TC", sans-serif';
+  fx.textAlign = 'center'; fx.textBaseline = 'middle';
+  fx.fillText('你', 0, 2);
+  fx.restore();
+
+  fx.textAlign = 'left'; fx.textBaseline = 'alphabetic';
+  fx.fillStyle = 'rgba(226,232,240,.9)';
+  fx.font = '11.5px "Noto Sans TC", sans-serif';
+  fx.fillText(`${FISH.weapon === 'net' ? '🕸️ 網' : '🤏 單抓（拉扯）'}　捕獲率 ${Math.round(T.fish.catchRate * stateMul() * 100)}%／魚群 ${Math.round(T.fish.catchRateGlow * stateMul() * 100)}%　狀態：${STATE_NAME[T.fish.stateMode]}`, 10, H - 12);
 }
 
 function catchFish(f) {
@@ -1639,13 +1764,15 @@ function catchFish(f) {
 function catchPay(f) {
   if (f.shun) {
     S.pendingShun = { type: f.type, stake: f.tier, forRound: S.round + 1 };
-    log(`✨ 撈到特殊壽司魚 ${SUSHI[f.type].name}（押 ${f.tier}）→ 第 ${S.round + 1} 局可押特殊壽司`, 'w');
+    log(`✨ 撈到特殊壽司魚 ${SUSHI[f.type].name}（押 ${f.tier}）→ 第 ${S.round + 1} 局可押特殊壽司`);
+    notice(`✨ 撈到特殊壽司魚（押 ${f.tier}）`, true);
     return;
   }
   const need = neededTypes();
   if (need.has(f.type)) {
     S.hitTypes.add(f.type); S.hitCount[f.type] = (S.hitCount[f.type] || 0) + 1;
     log(`🎣 撈到 ${SUSHI[f.type].emoji}${SUSHI[f.type].name} → 補齊盤上缺的種類`);
+    notice(`🎣 補齊 ${SUSHI[f.type].name}！`, true);
     S.plates.forEach(p => payIfComplete(p, '（漁補齊）'));
   } else {
     const w = addWin(f.value);
@@ -1658,23 +1785,54 @@ fcv.onclick = e => {
   const r = fcv.getBoundingClientRect();
   const x = (e.clientX - r.left) * (GW / r.width);
   const y = (e.clientY - r.top) * (GH / r.height);
-  const cost = FISH.weapon === 'net' ? T.fish.netCost : T.fish.grabCost;
-  if (S.balance < cost) { log('餘額不足，撈不動了', 'b'); return; }
-  S.balance -= cost; S.betSum += cost; S.totalBet += cost; FISH.spent += cost;   // 發射就付費，撈不到也算投入
+  const d = Math.hypot(x - CX, y - CY);
+  const ang = Math.atan2(y - CY, x - CX);
+  if (d > R_SEA) return;                          // 點在漁場外
+  if (!inReach(ang)) { notice('太遠了 — 只撈得到自己面前那一區'); refreshAll(); return; }
   const now = performance.now();
-  const rad = FISH.weapon === 'net' ? T.fish.netRadius : 22;
-  let hits = FISH.list.filter(f => !f.dead && Math.hypot(f.x - x, (f.y + (f.dy || 0)) - y) <= rad + f.r);
-  if (FISH.weapon === 'grab') hits = hits.slice(0, 1);
+
+  if (FISH.weapon === 'grab') {
+    if (FISH.hook) return;                        // 已經在拉一隻了
+    let best = null, bestD = 1e9;
+    FISH.list.forEach(f => {
+      if (f.dead || !inReach(f.ang)) return;
+      const [fxp, fyp] = fishXY(f);
+      const dd = Math.hypot(fxp - x, fyp - y);
+      if (dd <= f.r + 18 && dd < bestD) { bestD = dd; best = f; }
+    });
+    FISH.ripple = { x, y, rad: 22, t0: now };
+    if (!best) {                                  // 空鉤也要錢
+      if (S.balance < T.fish.grabCost) { notice('餘額不足'); return; }
+      S.balance -= T.fish.grabCost; S.betSum += T.fish.grabCost;
+      S.totalBet += T.fish.grabCost; FISH.spent += T.fish.grabCost;
+      log(`沒勾到（-${T.fish.grabCost} 枚）`);
+      refreshAll(); return;
+    }
+    startTug(best, now);                          // 勾住 → 開始拉扯
+    notice(`勾到 ${SUSHI[best.type].name}！拉扯中，每 ${(T.fish.tugMs / 1000).toFixed(1)} 秒扣 ${T.fish.grabCost} 枚`, true);
+    refreshAll();
+    return;
+  }
+
+  // 網：一次判定，範圍內全撈
+  const cost = T.fish.netCost;
+  if (S.balance < cost) { notice('餘額不足，撈不動了'); return; }
+  S.balance -= cost; S.betSum += cost; S.totalBet += cost; FISH.spent += cost;
+  const rad = T.fish.netRadius;
   FISH.ripple = { x, y, rad, t0: now };
-  if (!hits.length) { log(`沒瞄到（-${cost} 枚）`, 'd'); refreshAll(); return; }
-  // 瞄到了也不一定撈得到：逐隻擲骰
+  const hits = FISH.list.filter(f => {
+    if (f.dead || !inReach(f.ang)) return false;
+    const [fxp, fyp] = fishXY(f);
+    return Math.hypot(fxp - x, fyp - y) <= rad + f.r;
+  });
+  if (!hits.length) { log(`網空了（-${cost} 枚）`); notice(`網空了（-${cost} 枚）`); refreshAll(); return; }
   let got = 0, miss = 0;
   hits.forEach(f => {
     if (Math.random() < catchChance(f)) { catchFish(f); got++; }
     else { spook(f, now); miss++; }
   });
-  if (!got) log(`失手：魚受驚跑掉 ×${miss}（-${cost} 枚）`, 'd');
-  else if (miss) log(`跑掉 ${miss} 隻`, 'd');
+  if (!got) { log(`一隻都沒撈到（-${cost} 枚）`); notice(`一隻都沒撈到（-${cost} 枚）`); }
+  else if (miss) log(`撈到 ${got} 隻，跑掉 ${miss} 隻`);
   refreshAll();
 };
 $('wNet').onclick = () => { FISH.weapon = 'net'; refreshAll(); };
@@ -1683,12 +1841,11 @@ $('fishEnd').onclick = () => { if (S.phase === 'FISH') endFishing(); };
 
 function endFishing() {
   if (S.phase !== 'FISH' || FISH.over) return;
-  FISH.over = true;
+  FISH.over = true; FISH.hook = null;
   if (FISH.raf) cancelAnimationFrame(FISH.raf);
   FISH.raf = null;
   const net = FISH.gained - FISH.spent;
   log(`漁結束：投入 ${fmt(FISH.spent)}／回收 ${fmt(FISH.gained)} → ${net >= 0 ? '+' : ''}${fmt(net)} 枚`);
-  // 轉場：喊「漁結束」＋結算，畫面才切回輪盤
   bannerFx('漁結束', `投入 ${fmt(FISH.spent)}　回收 ${fmt(FISH.gained)}　${net >= 0 ? '+' : ''}${fmt(net)} 枚`,
     'sea', T.rhythm.fishFx, () => {
       $('stage').classList.remove('fishing');
@@ -1936,8 +2093,18 @@ function drawFishShape(c, x, y, r, dir, type, t, opt) {
    每次繪製前把 context 縮放回遊戲座標，其他程式碼都不用改。 */
 const GW = 574, GH = 574, HD = 1.5;
 const cv = $('wheel'), cx = cv.getContext('2d');
-const CX = 287, CY = 287, R_OUT = 222, R_IN = 122, R_BALL = 190;
-const R_ICON = 186, R_NAME = 148;                 // 格內壽司圖／名稱的半徑
+const CX = 287, CY = 287;
+/* 輪盤有兩種大小：押注時縮小、外圈跑迴轉帶；抽選開始就把迴轉帶收掉、輪盤放大到滿版。
+   S.wheelK 0→1 之間補間，所有半徑跟著變。 */
+const WS = { out: 222, in: 122, ball: 190, icon: 186, name: 148 };   // 小（有迴轉帶）
+const WB = { out: 274, in: 150, ball: 234, icon: 230, name: 182 };   // 大（滿版）
+let R_OUT = WS.out, R_IN = WS.in, R_BALL = WS.ball, R_ICON = WS.icon, R_NAME = WS.name;
+function applyWheelScale() {
+  const k = S.wheelK;
+  const L = (a, b) => a + (b - a) * k;
+  R_OUT = L(WS.out, WB.out); R_IN = L(WS.in, WB.in); R_BALL = L(WS.ball, WB.ball);
+  R_ICON = L(WS.icon, WB.icon); R_NAME = L(WS.name, WB.name);
+}
 const BELT_IN = 230, BELT_OUT = 284, BELT_R = 257, BELT_PR = 27;   // 外圈迴轉帶
 // 輪盤是「一直在轉」的：pocketAngleLocal 是格子在盤上的固定角度，
 // pocketAngle 是它此刻在螢幕上的角度（＝盤面角度 + 自轉量）。
@@ -1950,6 +2117,12 @@ function stepWheel(now) {
   S.rotT = now;
   S.wheelRot = (S.wheelRot + dt * T.rhythm.wheelSpin * Math.PI / 180) % (Math.PI * 2);
   BELT.rot = (BELT.rot + dt * T.rhythm.beltSpin * Math.PI / 180) % (Math.PI * 2);
+  if (S.wheelK !== S.wheelKT) {
+    const sp = Math.min(1, dt * 4.5);
+    S.wheelK += (S.wheelKT - S.wheelK) * sp;
+    if (Math.abs(S.wheelKT - S.wheelK) < 0.002) S.wheelK = S.wheelKT;
+  }
+  applyWheelScale();
 }
 function beltAngle(i) {
   return -Math.PI / 2 + BELT.rot + i * (Math.PI * 2 / Math.max(1, BELT.list.length));
@@ -1970,7 +2143,7 @@ function draw() {
   cx.beginPath(); cx.arc(CX, CY, R_OUT + 6, 0, Math.PI * 2);
   cx.strokeStyle = 'rgba(251,191,36,.25)'; cx.lineWidth = 2; cx.stroke();
 
-  drawBeltTrack();
+  if (S.wheelK < 0.995) { cx.save(); cx.globalAlpha = 1 - S.wheelK; drawBeltTrack(); cx.restore(); }
 
   const seg = Math.PI * 2 / 16;
   for (let i = 0; i < 16; i++) {
@@ -2120,8 +2293,25 @@ function draw() {
     ball(x, y, 14, '#fff7d6', '#d97706', 'EX', '#431407');
   }
 
-  drawBeltPlates(now);
+  if (S.wheelK < 0.995) { cx.save(); cx.globalAlpha = 1 - S.wheelK; drawBeltPlates(now); cx.restore(); }
+  drawExpandFx(now);
   drawFX(now);
+}
+
+/* 輪盤放大時的衝擊波，讓切換不會很突兀 */
+function drawExpandFx(now) {
+  if (!FX.expand) return;
+  const k = (now - FX.expand) / 700;
+  if (k >= 1) { FX.expand = 0; return; }
+  const r = WS.out + (WB.out + 40 - WS.out) * k;
+  cx.save();
+  cx.globalAlpha = (1 - k) * 0.9;
+  cx.strokeStyle = '#fde68a'; cx.lineWidth = 6 * (1 - k) + 1;
+  cx.beginPath(); cx.arc(CX, CY, r, 0, 6.28); cx.stroke();
+  cx.globalAlpha = (1 - k) * 0.35;
+  cx.strokeStyle = '#7dd3fc'; cx.lineWidth = 2;
+  cx.beginPath(); cx.arc(CX, CY, r * 0.92, 0, 6.28); cx.stroke();
+  cx.restore();
 }
 
 /* ============ 外圈迴轉帶 ============ */
@@ -2207,7 +2397,7 @@ function drawBeltPlates(now) {
 
 /* 點迴轉帶上的盤子 */
 cv.onclick = e => {
-  if (S.phase !== 'BET' || !BELT.list.length) return;
+  if (S.phase !== 'BET' || !BELT.list.length || S.wheelK > 0.5) return;
   const r = cv.getBoundingClientRect();
   const x = (e.clientX - r.left) * (GW / r.width);
   const y = (e.clientY - r.top) * (GH / r.height);
@@ -2356,19 +2546,26 @@ function refreshAll() {
   refreshBeltPay();
   updateCd();
 
-  // 本局的 15 貫全部列出來（照實機：同一種佔幾格就出現幾貫，可以挑同種多貫）
+  // 一種一整排，排上有幾貫就是本局佔幾格（照實機的選台面）
   const chips = $('chips'); chips.innerHTML = '';
   S.kinds.slice().sort((a, b) => S.counts[a] - S.counts[b] || a - b).forEach(t => {
     const picked = S.selected.filter(x => x === t).length;
+    const row = document.createElement('div');
+    row.className = 'srow' + (picked ? ' on' : '');
+    row.innerHTML = `<span class="sr-lb">${iconTag(t, 22)}<b>${SUSHI[t].name}</b>` +
+      `<i>×${multOf('maru', [t]).toFixed(1)}</i></span>`;
+    const box = document.createElement('span');
+    box.className = 'sr-tiles';
     for (let i = 0; i < S.counts[t]; i++) {
-      const d = document.createElement('div');
-      d.className = 'slot' + (i < picked ? ' sel' : '') + ((S.hitCount[t] || 0) > i ? ' hit' : '');
-      d.innerHTML = iconTag(t, 26) + `<b>${SUSHI[t].name}</b>` +
-        (i === 0 ? `<span class="mul">×${multOf('maru', [t]).toFixed(1)}</span>` : '<span class="mul dup">同種</span>');
-      d.title = `${SUSHI[t].name}（本局 ${S.counts[t]} 貫）`;
+      const d = document.createElement('span');
+      d.className = 'sq' + (i < picked ? ' sel' : '') + ((S.hitCount[t] || 0) > i ? ' hit' : '');
+      d.innerHTML = iconTag(t, 22);
+      d.title = i === 0 ? `${SUSHI[t].name}（本局 ${S.counts[t]} 貫）` : `押第 ${i + 1} 貫＝要開出 ${i + 1} 顆`;
       d.onclick = () => pickSlot(t, i);
-      chips.appendChild(d);
+      box.appendChild(d);
     }
+    row.appendChild(box);
+    chips.appendChild(row);
   });
 
   // 特殊壽司（漁中撈到特殊壽司魚後，限「下一局」可押 1 盤）
@@ -2678,7 +2875,7 @@ window.__TEST__ = {
   hitProb, multOf, newBoard, addPlate, deal, nextRound,
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
   SP_ITEMS, STATE_NAME, stateMul, catchChance, betLeft, startBetPhase, endFree, stepWheel,
-  autoFreePick, HIST, missingOf, addPlates, canAddCount, roundCap, addWin, pickSlot, plateDone, needMap, haveOf, renderSeat, fitScreen, payRange, startFx, bannerFx, useFree, freeCands,
+  autoFreePick, HIST, missingOf, addPlates, canAddCount, roundCap, addWin, pickSlot, applyWheelScale, inReach, startTug, stepTug, fishXY, plateDone, needMap, haveOf, renderSeat, fitScreen, payRange, startFx, bannerFx, useFree, freeCands,
   refreshAll, KIND_SIZE, STAKE, setHits, hitProb, gainStamp, renderStamps, BELT, makeBelt, pickBelt, beltAngle, refreshBeltPay, GW, GH, HD,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
   forceSP(item) {
