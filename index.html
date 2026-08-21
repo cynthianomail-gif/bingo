@@ -598,7 +598,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'B8';
+const APP_BUILD = 'B9';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -2582,7 +2582,7 @@ function refreshAll() {
       const d = document.createElement('span');
       d.className = 'sq' + (i < picked ? ' sel' : '') + ((S.hitCount[t] || 0) > i ? ' hit' : '');
       d.innerHTML = iconTag(t, 22);
-      d.title = i === 0 ? `${SUSHI[t].name}（本局 ${S.counts[t]} 貫）` : `押第 ${i + 1} 貫＝要開出 ${i + 1} 顆`;
+      d.title = `${SUSHI[t].name}（本局 ${S.counts[t]} 貫）— 點一下加 1 貫，再點已亮的可收回`;
       d.onclick = () => pickSlot(t, i);
       box.appendChild(d);
     }
@@ -2692,22 +2692,20 @@ function refreshAll() {
   draw();
 }
 
-/* 點本局第 i 貫的某種壽司：
-   點還沒選的那貫 → 這種選到 i+1 貫；點已經選的那貫 → 縮回 i 貫。
-   同一種可以選多貫＝要開出多顆那種的球。 */
+/* 點一格＝加/減「一貫」：
+   點還沒亮的那貫 → 這種多押 1 貫；點已經亮的那貫 → 少押 1 貫。
+   （不要做成「點第 3 格就選 3 貫」——換去點別種的第 3 格會一次塞 3 貫，把先前選的擠掉） */
 function pickSlot(t, i) {
   if (S.phase !== 'BET') return;
   const max = KIND_SIZE[S.kind][1];
   const cur = S.selected.filter(x => x === t).length;
-  const want = i < cur ? i : i + 1;
-  if (want > cur) {
-    for (let k = 0; k < want - cur; k++) S.selected.push(t);
-    while (S.selected.length > max) S.selected.shift();
+  if (i < cur) {                                   // 已經亮的 → 收回 1 貫
+    const idx = S.selected.lastIndexOf(t);
+    if (idx >= 0) S.selected.splice(idx, 1);
   } else {
-    for (let k = 0; k < cur - want; k++) {
-      const idx = S.selected.lastIndexOf(t);
-      if (idx >= 0) S.selected.splice(idx, 1);
-    }
+    if (cur >= S.counts[t]) return;                // 這種在盤面上只有這麼多貫
+    if (S.selected.length >= max) S.selected.shift();   // 選滿了 → 擠掉最早選的那貫
+    S.selected.push(t);
   }
   BELT.sel = -1;
   refreshAll();
