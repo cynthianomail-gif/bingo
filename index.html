@@ -539,7 +539,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'B1';
+const APP_BUILD = 'B2';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -560,7 +560,7 @@ const SP_POCKET = -1;   // 老闆SP 格
 
 /* ============ 可調參數 ============ */
 const TUNE_KEY = 'sushi_bingo_tuning';
-const TUNE_VERSION = 3;
+const TUNE_VERSION = 4;
 
 const DEF = {
   rhythm: {
@@ -583,7 +583,7 @@ const DEF = {
     rareBias:    0.55,  // 越大越容易出現「只佔 1 格」的稀有種
   },
   econ: {
-    startBalance: 500,  // 起始持有枚數
+    startBalance: 1000000,  // 起始持有枚數
     plateCap:     2500, // 單一盤的當選額上限
     maxPlates:    30,   // 同組合最大盤數
     maruLo: 1.2, maruHi: 7,
@@ -646,7 +646,7 @@ const TUNE_META = {
     ['rareBias', '稀有種傾向', 0, 1, 0.05],
   ],
   econ: [
-    ['startBalance', '起始枚數', 100, 5000, 50],
+    ['startBalance', '起始枚數', 1000, 2000000, 1000],
     ['plateCap', '單盤得分上限', 500, 30000, 100],
     ['maxPlates', '同組合上限盤', 1, 30, 1],
     ['maruLo', '圓盤賠率下限', 1, 5, 0.1],
