@@ -138,7 +138,23 @@
   @keyframes cdBlink { 50% { opacity: .28; } }
 
   /* ---- 壽司 chip ---- */
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+  .chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 6px 0 4px; }
+  .slot {
+    display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 2px 4px;
+    border-radius: 10px; cursor: pointer; user-select: none;
+    border: 1px solid var(--line); background: linear-gradient(180deg, #1c2742, #121a2e);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+    transition: transform .1s, border-color .15s, box-shadow .15s;
+  }
+  .slot:hover { transform: translateY(-2px); border-color: var(--sky); }
+  .slot b { font-size: 10.5px; font-weight: 700; color: #d7e2f7; line-height: 1.1; }
+  .slot .mul { font-size: 9.5px; font-weight: 800; color: #ffa9d0; font-variant-numeric: tabular-nums; }
+  .slot .mul.dup { color: var(--muted-2); font-weight: 400; }
+  .slot.sel {
+    border-color: var(--gold); background: linear-gradient(180deg, #3c2d0c, #241a06);
+    box-shadow: inset 0 0 0 1px var(--gold), 0 0 14px rgba(233,181,63,.3);
+  }
+  .slot.hit { box-shadow: inset 0 0 0 2px var(--jade), 0 0 12px rgba(55,165,106,.3); }
   .chip {
     display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px; border-radius: 999px;
     border: 1px solid var(--line); background: linear-gradient(180deg, #1c2742, #121a2e);
@@ -562,7 +578,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'B4';
+const APP_BUILD = 'B5';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -743,7 +759,8 @@ const S = {
   betSum: 0, winSum: 0,
   selected: [],          // 目前選取的種類
   kind: 'maru',
-  hitTypes: new Set(),   // 命中的種類（含 FREE）
+  hitTypes: new Set(),   // 命中過的種類（畫面標示用）
+  hitCount: {},          // 每種開出幾顆球（同一種可以押多貫，所以要算數量）
   spHit: false,
   spItems: null,         // 老闆SP 特別輪盤：pocket index -> 獎項 key
   spFree: null,          // 特別輪盤可用的格子
@@ -835,11 +852,15 @@ function makeBelt() {
   const n = ks.length, mid = Math.floor(n / 2);
   const out = [];
   const add = (kind, types) => {
-    if (types.length !== new Set(types).size) return;
+    if (types.some(t => t === undefined)) return;
+    const need = {};
+    for (const t of types) { need[t] = (need[t] || 0) + 1; if (need[t] > S.counts[t]) return; }  // 貫數不能超過格數
     if (out.some(o => o.kind === kind && o.types.slice().sort().join() === types.slice().sort().join())) return;
     out.push({ kind, types });
   };
   add('maru', [ks[0]]);                       // 圓盤：最稀有 1 種（高賠）
+  if (S.counts[ks[n - 1]] >= 2) add('maru', [ks[n - 1], ks[n - 1]]);        // 圓盤：同種 2 貫
+  if (S.counts[ks[n - 1]] >= 2) add('geta', [ks[n - 1], ks[n - 1], ks[n - 2]]); // 三貫：同種 2 貫＋1 種
   add('maru', [ks[n - 1]]);                   // 圓盤：最常見 1 種（穩）
   add('maru', [ks[0], ks[1]]);                // 圓盤：兩種稀有
   add('geta', ks.slice(0, 3));                // 三貫：全稀有
@@ -876,16 +897,23 @@ function pickBelt(i) {
 
 /* ============ 賠率計算 ============ */
 // 命中機率：所選每一種都至少被 1 顆球命中（16 格取 5，容斥原理）
+/* 命中機率：types 允許重複——同一種選 2 貫，就是要 5 顆球裡有 2 顆落在那種的格子。
+   算法：對每一種列舉「落了幾顆球」，其餘球落在沒被選到的格子。 */
 function hitProb(types) {
-  const n = 16, b = 5, total = comb(n, b);
-  const m = types.length;
+  const need = new Map();
+  types.forEach(t => need.set(t, (need.get(t) || 0) + 1));
+  const ks = [...need.keys()];
+  const c = ks.map(t => S.counts[t] || 0);
+  const m = ks.map(t => need.get(t));
+  for (let i = 0; i < ks.length; i++) if (m[i] > c[i]) return 1e-9;   // 格數不夠，永遠不可能中
+  const rest = 16 - c.reduce((a, b) => a + b, 0);
+  const total = comb(16, 5);
   let p = 0;
-  for (let mask = 0; mask < (1 << m); mask++) {
-    let pk = 0, bits = 0;
-    for (let i = 0; i < m; i++) if (mask & (1 << i)) { pk += S.counts[types[i]] || 0; bits++; }
-    p += (bits % 2 ? -1 : 1) * comb(n - pk, b) / total;
-  }
-  return Math.max(p, 1e-9);
+  (function rec(i, used, ways) {
+    if (i === ks.length) { p += ways * comb(rest, 5 - used); return; }
+    for (let x = m[i]; x <= Math.min(c[i], 5 - used); x++) rec(i + 1, used + x, ways * comb(c[i], x));
+  })(0, 0, 1);
+  return Math.max(p / total, 1e-9);
 }
 function rangeOf(kind) {
   const e = T.econ;
@@ -1037,7 +1065,7 @@ function deal() {
   if (S.phase !== 'BET') return;
   clearAuto();
   S.phase = 'DRAW';
-  S.balls = []; S.hitTypes = new Set(); S.spHit = false;
+  S.balls = []; S.hitTypes = new Set(); S.hitCount = {}; S.spHit = false;
   // 5 顆球落在互不相同的 5 格
   S.drawOrder = shuffle([...Array(16).keys()]).slice(0, 5);
   histNew(S.round);
@@ -1080,7 +1108,10 @@ function dropBall(i) {
     const t = S.pockets[idx];
     histBall(t);
     if (t === SP_POCKET) { S.spHit = true; log(`第 ${i + 1} 球 → 🎴 老闆SP！`, 'b'); }
-    else { S.hitTypes.add(t); log(`第 ${i + 1} 球 → ${SUSHI[t].emoji} ${SUSHI[t].name}`, 'i'); }
+    else {
+      S.hitTypes.add(t); S.hitCount[t] = (S.hitCount[t] || 0) + 1;
+      log(`第 ${i + 1} 球 → ${SUSHI[t].emoji} ${SUSHI[t].name}`);
+    }
     refreshAll();
     setTimeout(() => afterBall(i), T.rhythm.ballGap);
   };
@@ -1102,7 +1133,26 @@ function afterBall(i) {
   dropBall(i + 1);
 }
 
-function missingOf(p) { return p.types.filter(t => !S.hitTypes.has(t) && p.freeUsed !== t); }
+/* 這盤各種類要幾貫 */
+function needMap(p) {
+  const m = new Map();
+  p.types.forEach(t => m.set(t, (m.get(t) || 0) + 1));
+  return m;
+}
+/* 這盤這種類目前拿到幾貫（FREE CHOICE 算 1 貫） */
+function haveOf(p, t) { return (S.hitCount[t] || 0) + (p.freeUsed === t ? 1 : 0); }
+/* 還差的種類（不重複列） */
+function missingOf(p) {
+  const out = [];
+  needMap(p).forEach((n, t) => { if (haveOf(p, t) < n) out.push(t); });
+  return out;
+}
+/* 這盤是否已完成 */
+function plateDone(p) {
+  let ok = true;
+  needMap(p).forEach((n, t) => { if (haveOf(p, t) < n) ok = false; });
+  return ok;
+}
 
 /* FREE CHOICE：直接在「我的座位」點那盤缺的壽司，那貫就算命中 */
 function freeCands() {
@@ -1137,8 +1187,6 @@ function endFree() {
 }
 
 /* ============ 結算 ============ */
-function isHit(p, t) { return S.hitTypes.has(t) || p.freeUsed === t; }
-
 /* ============ 演出：金幣噴發、盤面發光、中獎快報 ============ */
 const FX = { coins: [], glow: 0, glowT: 0, spReveal: 0 };
 
@@ -1221,7 +1269,7 @@ function addWin(n) {
 
 function payIfComplete(p, tag) {
   if (p.kind === 'shun' || p.result) return 0;
-  if (!p.types.every(t => isHit(p, t))) return 0;
+  if (!plateDone(p)) return 0;
   const w = p.per * p.count;
   p.result = w; addWin(w);
   log(`🎉 BINGO${tag || ''} ${KIND_NAME[p.kind]}（${p.types.map(t => SUSHI[t].name).join('＋')}）×${p.count} 盤 → ${w} 枚`, 'w');
@@ -1261,7 +1309,7 @@ function nextRound() {
   // 特殊壽司盤只在「取得的下一局」可押，過期就清掉
   if (S.pendingShun && S.round >= S.pendingShun.forRound) S.pendingShun = null;
   S.round++; S.plates = []; S.selected = []; S.betSum = 0; S.winSum = 0;
-  S.balls = []; S.hitTypes = new Set(); S.spHit = false;
+  S.balls = []; S.hitTypes = new Set(); S.hitCount = {}; S.spHit = false;
   S.spItems = null; S.spFree = null; S.exBall = null;
   startBetPhase();
   newBoard(); refreshAll();
@@ -1396,7 +1444,7 @@ function startFishing(mode) {
 
 function neededTypes() {
   const s = new Set();
-  S.plates.forEach(p => { if (p.kind !== 'shun' && !p.result) p.types.forEach(t => { if (!isHit(p, t)) s.add(t); }); });
+  S.plates.forEach(p => { if (p.kind !== 'shun' && !p.result) missingOf(p).forEach(t => s.add(t)); });
   return s;
 }
 
@@ -1596,8 +1644,8 @@ function catchPay(f) {
   }
   const need = neededTypes();
   if (need.has(f.type)) {
-    S.hitTypes.add(f.type);
-    log(`🎣 撈到 ${SUSHI[f.type].emoji}${SUSHI[f.type].name} → 補齊盤上缺的種類`, 'w');
+    S.hitTypes.add(f.type); S.hitCount[f.type] = (S.hitCount[f.type] || 0) + 1;
+    log(`🎣 撈到 ${SUSHI[f.type].emoji}${SUSHI[f.type].name} → 補齊盤上缺的種類`);
     S.plates.forEach(p => payIfComplete(p, '（漁補齊）'));
   } else {
     const w = addWin(f.value);
@@ -2217,7 +2265,7 @@ function renderSeat() {
   cap.innerHTML = `本局得分上限：押注 ${fmt(S.betSum)} × ${fmt(T.econ.maxWinMul)} ＝ <b>${fmt(roundCap())}</b> 枚`;
   box.appendChild(cap);
   S.plates.forEach(p => {
-    const done = p.kind !== 'shun' && p.types.every(t => isHit(p, t));
+    const done = p.kind !== 'shun' && plateDone(p);
     const pay = p.kind === 'shun' ? p.per : p.per * p.count;
     const res = p.result == null ? '' :
       (p.result ? `<span class="sh-won">+${fmt(p.result)}</span>` : '<span class="sh-lost">未中</span>');
@@ -2231,12 +2279,16 @@ function renderSeat() {
     col.className = 'seat-col';
     col.innerHTML =
       (p.free ? `<div><span class="free-badge${canFree ? ' live' : ''}">${canFree ? 'FREE ↓ 點一貫' : 'FREE'}</span></div>` : '') +
-      '<div class="tiles">' + p.types.map(t => {
-        const hit = isHit(p, t);
-        const pickable = canFree && !hit;
-        return `<span class="tile ${hit ? 'on' : 'off'}${pickable ? ' pick' : ''}" data-t="${t}" title="${SUSHI[t].name}">` +
-          iconTag(t, 26) + (p.freeUsed === t ? '<b class="tf">F</b>' : '') + '</span>';
-      }).join('') + '</div>' +
+      '<div class="tiles">' + (function () {
+        const seen = {};
+        return p.types.map(t => {
+          const j = (seen[t] = (seen[t] || 0) + 1);      // 這是這種類的第 j 貫
+          const hit = haveOf(p, t) >= j;                  // 開到第 j 顆才算這貫中
+          const pickable = canFree && !hit;
+          return `<span class="tile ${hit ? 'on' : 'off'}${pickable ? ' pick' : ''}" data-t="${t}" title="${SUSHI[t].name}">` +
+            iconTag(t, 26) + (p.freeUsed === t && j === haveOf(p, t) ? '<b class="tf">F</b>' : '') + '</span>';
+        }).join('');
+      })() + '</div>' +
       `<div class="seat-head"><b>${KIND_NAME[p.kind]}</b>×${p.count} 盤　押 ${fmt(p.stake * p.count)}` +
       (p.kind === 'shun' ? '' : `　單盤 ${fmt(p.per)}`) + `${res}</div>`;
     if (canFree) {
@@ -2304,16 +2356,19 @@ function refreshAll() {
   refreshBeltPay();
   updateCd();
 
-  // chips
+  // 本局的 15 貫全部列出來（照實機：同一種佔幾格就出現幾貫，可以挑同種多貫）
   const chips = $('chips'); chips.innerHTML = '';
-  S.kinds.slice().sort((a, b) => S.counts[a] - S.counts[b]).forEach(t => {
-    const d = document.createElement('div');
-    d.className = 'chip' + (S.selected.includes(t) ? ' sel' : '') + (S.hitTypes.has(t) ? ' hit' : '');
-    d.innerHTML = iconTag(t, 30) + `<span>${SUSHI[t].name}</span>` +
-      `<span class="pk">${S.counts[t]}格${S.counts[t] === 1 ? ' ★' : ''}</span>` +
-      `<span class="mul">×${multOf('maru', [t]).toFixed(1)}</span>`;
-    d.onclick = () => toggleSel(t);
-    chips.appendChild(d);
+  S.kinds.slice().sort((a, b) => S.counts[a] - S.counts[b] || a - b).forEach(t => {
+    const picked = S.selected.filter(x => x === t).length;
+    for (let i = 0; i < S.counts[t]; i++) {
+      const d = document.createElement('div');
+      d.className = 'slot' + (i < picked ? ' sel' : '') + ((S.hitCount[t] || 0) > i ? ' hit' : '');
+      d.innerHTML = iconTag(t, 26) + `<b>${SUSHI[t].name}</b>` +
+        (i === 0 ? `<span class="mul">×${multOf('maru', [t]).toFixed(1)}</span>` : '<span class="mul dup">同種</span>');
+      d.title = `${SUSHI[t].name}（本局 ${S.counts[t]} 貫）`;
+      d.onclick = () => pickSlot(t, i);
+      chips.appendChild(d);
+    }
   });
 
   // 特殊壽司（漁中撈到特殊壽司魚後，限「下一局」可押 1 盤）
@@ -2411,12 +2466,24 @@ function refreshAll() {
   draw();
 }
 
-function toggleSel(t) {
+/* 點本局第 i 貫的某種壽司：
+   點還沒選的那貫 → 這種選到 i+1 貫；點已經選的那貫 → 縮回 i 貫。
+   同一種可以選多貫＝要開出多顆那種的球。 */
+function pickSlot(t, i) {
   if (S.phase !== 'BET') return;
   const max = KIND_SIZE[S.kind][1];
-  const i = S.selected.indexOf(t);
-  if (i >= 0) S.selected.splice(i, 1);
-  else { if (S.selected.length >= max) S.selected.shift(); S.selected.push(t); }
+  const cur = S.selected.filter(x => x === t).length;
+  const want = i < cur ? i : i + 1;
+  if (want > cur) {
+    for (let k = 0; k < want - cur; k++) S.selected.push(t);
+    while (S.selected.length > max) S.selected.shift();
+  } else {
+    for (let k = 0; k < cur - want; k++) {
+      const idx = S.selected.lastIndexOf(t);
+      if (idx >= 0) S.selected.splice(idx, 1);
+    }
+  }
+  BELT.sel = -1;
   refreshAll();
 }
 
@@ -2442,9 +2509,12 @@ function forceEvent(kind) {
   if (S.phase === 'BET') {
     S.drawOrder = shuffle([...Array(16).keys()]).slice(0, 5);
     S.balls = S.drawOrder.slice();
-    S.hitTypes = new Set();
+    S.hitTypes = new Set(); S.hitCount = {};
     histNew(S.round);
-    S.balls.forEach(i => { const t = S.pockets[i]; histBall(t); if (t !== SP_POCKET) S.hitTypes.add(t); });
+    S.balls.forEach(i => {
+      const t = S.pockets[i]; histBall(t);
+      if (t !== SP_POCKET) { S.hitTypes.add(t); S.hitCount[t] = (S.hitCount[t] || 0) + 1; }
+    });
     S.spHit = false;                 // 由強開接手，避免 settle 又觸發一次 SP
     S.phase = 'DRAW';
     log('（強開）直接擺好 5 顆球並結算本局', 'd');
@@ -2545,6 +2615,13 @@ log(`機台不停：押注 ${T.rhythm.betSeconds} 秒 → 自動開 5 球 → �
 })();
 
 
+/* 測試／情境用：一次設定「開出了哪些貫」 */
+function setHits(arr) {
+  S.hitTypes = new Set(arr);
+  S.hitCount = {};
+  arr.forEach(t => { S.hitCount[t] = (S.hitCount[t] || 0) + 1; });
+}
+
 /* ============ 開發用情境跳轉 ============
    在網址後加 #demo=win / sp / fish / dairyo / shunryo，載入後直接跳到該情境，
    方便截圖與回歸（不影響正常玩）。                                        */
@@ -2565,13 +2642,13 @@ log(`機台不停：押注 ${T.rhythm.betSeconds} 秒 → 自動開 5 球 → �
     }
     if (k === 'win') {
       addPlate('geta', ks.slice(0, 3));
-      S.hitTypes = new Set(ks.slice(0, 3));
+      setHits(ks.slice(0, 3));
       S.phase = 'DRAW'; S.balls = [0, 1, 2, 3, 4];
       settle();
       return;
     }
     addPlate('geta', ks.slice(0, 3));
-    S.hitTypes = new Set([ks[0]]);
+    setHits([ks[0]]);
     S.plates[0].result = 0;
     S.balls = [0, 3, 6, 9, 12];
     S.phase = 'SETTLE';
@@ -2601,8 +2678,8 @@ window.__TEST__ = {
   hitProb, multOf, newBoard, addPlate, deal, nextRound,
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
   SP_ITEMS, STATE_NAME, stateMul, catchChance, betLeft, startBetPhase, endFree, stepWheel,
-  autoFreePick, HIST, missingOf, addPlates, canAddCount, roundCap, addWin, renderSeat, fitScreen, payRange, startFx, bannerFx, useFree, freeCands,
-  refreshAll, KIND_SIZE, STAKE, gainStamp, renderStamps, BELT, makeBelt, pickBelt, beltAngle, refreshBeltPay, GW, GH, HD,
+  autoFreePick, HIST, missingOf, addPlates, canAddCount, roundCap, addWin, pickSlot, plateDone, needMap, haveOf, renderSeat, fitScreen, payRange, startFx, bannerFx, useFree, freeCands,
+  refreshAll, KIND_SIZE, STAKE, setHits, hitProb, gainStamp, renderStamps, BELT, makeBelt, pickBelt, beltAngle, refreshBeltPay, GW, GH, HD,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
   forceSP(item) {
     const free = []; for (let i = 0; i < 16; i++) if (!S.balls.includes(i)) free.push(i);
