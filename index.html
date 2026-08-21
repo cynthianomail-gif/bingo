@@ -389,6 +389,17 @@
     font-size: 17px; font-weight: 700; letter-spacing: 6px; color: #9fd4ff;
     text-shadow: 0 2px 10px rgba(0,0,0,.9);
   }
+  #startFx.sea .sf-main {
+    background: linear-gradient(180deg, #eaffff, #7fc7f5 52%, #1f6fa8);
+    -webkit-background-clip: text; background-clip: text;
+    filter: drop-shadow(0 4px 0 rgba(0,0,0,.55)) drop-shadow(0 0 26px rgba(127,199,245,.85));
+  }
+  #startFx.sea .sf-sub { color: #a5e2ff; }
+  .stage.fishing #fish { animation: seaIn .55s ease-out; }
+  @keyframes seaIn {
+    0% { opacity: 0; transform: scale(1.06); filter: blur(6px); }
+    100% { opacity: 1; transform: none; filter: none; }
+  }
   #startFx.sp .sf-main {
     background: linear-gradient(180deg, #fdf2ff, #c084fc 52%, #7c3aed);
     -webkit-background-clip: text; background-clip: text;
@@ -551,7 +562,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'B3';
+const APP_BUILD = 'B4';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -572,7 +583,7 @@ const SP_POCKET = -1;   // 老闆SP 格
 
 /* ============ 可調參數 ============ */
 const TUNE_KEY = 'sushi_bingo_tuning';
-const TUNE_VERSION = 4;
+const TUNE_VERSION = 5;
 
 const DEF = {
   rhythm: {
@@ -582,6 +593,7 @@ const DEF = {
     spinTurns:  1.25,   // 球在盤上繞幾圈才落定（圈數少＋時間長＝慢慢滾）
     startFx:   1400,    // 「抽選開始」轉場長度 (ms)，0 = 不演出
     spFx:      1600,    // 「老闆SP」轉場長度 (ms)
+    fishFx:    1500,    // 進／出漁模式的轉場長度 (ms)
     betSeconds:  30,    // 押注時間（秒）；歸零自動開球
     freeSeconds: 10,    // FREE CHOICE 的選擇時間（秒）；歸零自動繼續
     roundGap:   3.5,    // 結算後幾秒自動進下一局
@@ -597,7 +609,7 @@ const DEF = {
   },
   econ: {
     startBalance: 1000000,  // 起始持有枚數
-    plateCap:   100000, // 單一組合的 BINGO得分上限（資產放到 100 萬，這裡也要跟著放大）
+    maxWinMul:   12000, // 整局得分上限＝本局押注額 ×N（單一組合不另設上限）
     maxPlates:    30,   // 同組合最大盤數
     maruLo: 1.2, maruHi: 7,
     getaLo: 1.2, getaHi: 16.6,
@@ -619,20 +631,22 @@ const DEF = {
   },
   fish: {
     duration:   30,  // 漁的秒數
-    netCost:    10,  // 網的花費
-    grabCost:    2,  // 單抓的花費
+    netCost:    20,  // 網的花費（[攻略] 原機 1 回 20 枚）
+    grabCost:    3,  // 單抓的花費（[攻略] 原機 1 回 3 枚）
     netRadius:  62,  // 網的半徑 px
     spawnMs:   850,  // 魚生成間隔 ms
     dairyoMul:  1.8, // 大漁的生成倍率
     maxFish:     30, // 畫面同時最多幾隻魚（避免擠成一團看不清）
-    fishMin:     8,  // 一般魚贏分下限
-    fishMax:    30,  // 一般魚贏分上限
+    fishMin:     4,  // 一般魚贏分下限（原本 8~30 對 3 枚的成本太甜）
+    fishMax:    12,  // 一般魚贏分上限
     schoolMin:  23,  // 魚群單隻贏分下限（[攻略]）
     schoolMax:  50,
     // ── 命中不保證：攻略把「漁で全く取れない（終始マイナス）」列為壞台特徵，
     //    代表發射要付費、命中由內部狀態控制，失手是純損失。
-    catchRate:     0.70,  // 一般魚的捕獲率
-    catchRateGlow: 0.92,  // 發光魚群的捕獲率（攻略：魚群比一般魚容易獲得）
+    //  玩家實測：「網 30 發丟到魚很多的地方，漁獲只有 20 枚」（30×20＝600 枚投入）
+    //  → 一般魚的期望值必須低於成本，賺頭集中在大漁的發光魚群
+    catchRate:     0.35,  // 一般魚的捕獲率
+    catchRateGlow: 0.60,  // 發光魚群的捕獲率（攻略：魚群比一般魚容易獲得）
     stateMode:     1,     // 內部狀態 0=回收期 1=普通 2=開放期
     openMul:       1.15,  // 開放期的捕獲率乘數
     recMul:        0.70,  // 回收期的捕獲率乘數
@@ -646,6 +660,7 @@ const TUNE_META = {
     ['spinTurns', '繞盤圈數', 0.25, 6, 0.25],
     ['startFx', '開球轉場 ms', 0, 4000, 100],
     ['spFx', '老闆SP 轉場 ms', 0, 4000, 100],
+    ['fishFx', '漁 轉場 ms', 0, 4000, 100],
     ['betSeconds', '押注秒數', 5, 120, 5],
     ['freeSeconds', 'FREE 選擇秒數', 3, 30, 1],
     ['roundGap', '結算→下局 秒', 0.5, 15, 0.5],
@@ -661,7 +676,7 @@ const TUNE_META = {
   ],
   econ: [
     ['startBalance', '起始枚數', 1000, 2000000, 1000],
-    ['plateCap', '單組合得分上限', 1000, 500000, 1000],
+    ['maxWinMul', '整局得分上限 ×押注', 100, 50000, 100],
     ['maxPlates', '同組合上限盤', 1, 30, 1],
     ['maruLo', '圓盤賠率下限', 1, 5, 0.1],
     ['maruHi', '圓盤賠率上限', 2, 30, 0.1],
@@ -934,12 +949,8 @@ function addPlate(kind, types, quiet) {
   const per = Math.round(stake * mult);
   if (p) {
     if (p.count >= T.econ.maxPlates) return fail(`這個組合已達 ${T.econ.maxPlates} 盤上限`);
-    if (per * (p.count + 1) > T.econ.plateCap) {
-      return fail(`BINGO得分上限：再加押會超過 ${fmt(T.econ.plateCap)} 枚`);
-    }
     p.count++;
   } else {
-    if (per > T.econ.plateCap) return fail('這個組合單盤賠付就超過 BINGO得分上限');
     p = { key, kind, types: types.slice(), count: 1, mult, per, stake, free: false, result: null };
     // FREE CHOICE：只有三貫與五貫有機會取得
     if (kind !== 'maru' && Math.random() < T.prob.freeChance) p.free = true;
@@ -971,12 +982,10 @@ function canAddCount(kind, types, want) {
   if (kind === 'shun') return S.plates.some(p => p.kind === 'shun') ? 0 : Math.min(1, want);
   const stake = STAKE[kind];
   const per = Math.round(stake * multOf(kind, types));
-  if (per > T.econ.plateCap) return 0;
   const p = S.plates.find(x => x.key === plateKey(kind, types));
   const cur = p ? p.count : 0;
   return Math.max(0, Math.min(
     want,
-    Math.floor(T.econ.plateCap / per) - cur,     // 得分上限
     T.econ.maxPlates - cur,                      // 同組合盤數上限
     Math.floor(S.balance / stake)                // 餘額
   ));
@@ -1196,12 +1205,24 @@ function drawFX(now) {
   });
 }
 
-function addWin(n) { S.winSum += n; S.balance += n; S.totalWin += n; }
+/* 整局得分上限：本局押注額（含撈魚投入）的 N 倍，超過的部分不給 */
+function roundCap() { return S.betSum * T.econ.maxWinMul; }
+function addWin(n) {
+  const room = Math.max(0, roundCap() - S.winSum);
+  if (n > room) {
+    log(`⚠ 觸及整局得分上限（押注 ${fmt(S.betSum)} ×${fmt(T.econ.maxWinMul)}＝${fmt(roundCap())}），本次只給 ${fmt(room)}`);
+    notice(`已達整局得分上限 ${fmt(roundCap())} 枚`);
+    n = room;
+  }
+  if (n <= 0) return 0;
+  S.winSum += n; S.balance += n; S.totalWin += n;
+  return n;
+}
 
 function payIfComplete(p, tag) {
   if (p.kind === 'shun' || p.result) return 0;
   if (!p.types.every(t => isHit(p, t))) return 0;
-  const w = Math.min(p.per * p.count, T.econ.plateCap);
+  const w = p.per * p.count;
   p.result = w; addWin(w);
   log(`🎉 BINGO${tag || ''} ${KIND_NAME[p.kind]}（${p.types.map(t => SUSHI[t].name).join('＋')}）×${p.count} 盤 → ${w} 枚`, 'w');
   celebrate(w, w >= 500 ? 'BIG WIN！' : 'BINGO！');
@@ -1219,7 +1240,8 @@ function settle() {
   });
   if (!win && S.plates.length) log('5 球結算：沒有中獎', 'd');
   refreshAll();
-  if (S.spHit) setTimeout(startSP, T.rhythm.settlePause);
+  // 沒押注就不進老闆SP：整局得分上限＝押注×N，押注 0 的話中什麼都是 0，演出反而奇怪
+  if (S.spHit && S.betSum > 0) setTimeout(startSP, T.rhythm.settlePause);
   else { histDone(S.winSum); scheduleNext(); }
 }
 
@@ -1348,23 +1370,28 @@ function spook(f, now) {          // 失手：魚受驚彈開
 function startFishing(mode) {
   S.phase = 'FISH';
   FISH.mode = mode; FISH.list = []; FISH.weapon = 'grab';
-  FISH.endAt = performance.now() + T.fish.duration * 1000;
   FISH.lastSpawn = 0; FISH.shunSpawned = false; FISH.ripple = null;
-  FISH.spent = 0; FISH.gained = 0;
-  // 魚機直接接管轉盤那一塊，不另開面板
-  $('stage').classList.add('fishing');
+  FISH.spent = 0; FISH.gained = 0; FISH.over = true;   // 轉場結束才開始算時間
   $('fishBar').style.display = 'block';
   $('fishTitle').textContent = mode === 'dairyo' ? '🌊 大漁 — 魚群密度提升'
     : mode === 'shunryo' ? '✨ 特殊壽司漁 — 會出現特殊壽司魚' : '🎣 漁';
   $('cNet').textContent = T.fish.netCost; $('cGrab').textContent = T.fish.grabCost;
+  $('fishTime').textContent = T.fish.duration.toFixed(1);
+  $('fishNet').textContent = '0';
   $('fishHint').innerHTML =
     `發射就扣錢，<b>瞄到也不一定撈得到</b>：一般魚 <b>${Math.round(T.fish.catchRate * stateMul() * 100)}%</b>／` +
     `發光魚群 <b>${Math.round(T.fish.catchRateGlow * stateMul() * 100)}%</b>（內部狀態：${STATE_NAME[T.fish.stateMode]} ×${stateMul().toFixed(2)}）。` +
     `　🔴 圈＝盤上還缺的種類，撈到就補齊 BINGO；其他魚 → 得該魚的值。`;
-  log(`進入 ${$('fishTitle').textContent}（${T.fish.duration} 秒・${STATE_NAME[T.fish.stateMode]}）`, 'b');
-  toast($('fishTitle').textContent.replace(/ —.*/, ''), '點畫面撈魚');
+  log(`進入 ${$('fishTitle').textContent}（${T.fish.duration} 秒・${STATE_NAME[T.fish.stateMode]}）`);
   refreshAll();
-  FISH.raf = requestAnimationFrame(fishLoop);
+  // 轉場：喊一聲 → 畫面切成海面 → 才開始計時
+  const title = $('fishTitle').textContent.replace(/ —.*/, '');
+  bannerFx(title, '點畫面撈魚', 'sea', T.rhythm.fishFx, () => {
+    $('stage').classList.add('fishing');
+    FISH.endAt = performance.now() + T.fish.duration * 1000;
+    FISH.over = false;
+    FISH.raf = requestAnimationFrame(fishLoop);
+  });
 }
 
 function neededTypes() {
@@ -1414,7 +1441,7 @@ function spawnFish(now) {
 }
 
 function fishLoop(now) {
-  if (S.phase !== 'FISH') return;
+  if (S.phase !== 'FISH' || FISH.over) return;
   const left = Math.max(0, FISH.endAt - now);
   $('fishTime').textContent = (left / 1000).toFixed(1);
   const net = FISH.gained - FISH.spent;
@@ -1573,19 +1600,19 @@ function catchPay(f) {
     log(`🎣 撈到 ${SUSHI[f.type].emoji}${SUSHI[f.type].name} → 補齊盤上缺的種類`, 'w');
     S.plates.forEach(p => payIfComplete(p, '（漁補齊）'));
   } else {
-    addWin(f.value);
-    log(`🎣 撈到 ${SUSHI[f.type].emoji}${SUSHI[f.type].name} +${f.value} 枚`, 'i');
+    const w = addWin(f.value);
+    log(`🎣 撈到 ${SUSHI[f.type].emoji}${SUSHI[f.type].name} +${w} 枚`);
   }
 }
 
 fcv.onclick = e => {
-  if (S.phase !== 'FISH') return;
+  if (S.phase !== 'FISH' || FISH.over) return;   // 轉場中不接受操作
   const r = fcv.getBoundingClientRect();
   const x = (e.clientX - r.left) * (GW / r.width);
   const y = (e.clientY - r.top) * (GH / r.height);
   const cost = FISH.weapon === 'net' ? T.fish.netCost : T.fish.grabCost;
   if (S.balance < cost) { log('餘額不足，撈不動了', 'b'); return; }
-  S.balance -= cost; S.totalBet += cost; FISH.spent += cost;   // 發射就付費，撈不到也算投入
+  S.balance -= cost; S.betSum += cost; S.totalBet += cost; FISH.spent += cost;   // 發射就付費，撈不到也算投入
   const now = performance.now();
   const rad = FISH.weapon === 'net' ? T.fish.netRadius : 22;
   let hits = FISH.list.filter(f => !f.dead && Math.hypot(f.x - x, (f.y + (f.dy || 0)) - y) <= rad + f.r);
@@ -1607,13 +1634,18 @@ $('wGrab').onclick = () => { FISH.weapon = 'grab'; refreshAll(); };
 $('fishEnd').onclick = () => { if (S.phase === 'FISH') endFishing(); };
 
 function endFishing() {
-  if (S.phase !== 'FISH') return;
+  if (S.phase !== 'FISH' || FISH.over) return;
+  FISH.over = true;
   if (FISH.raf) cancelAnimationFrame(FISH.raf);
   FISH.raf = null;
   const net = FISH.gained - FISH.spent;
-  log(`漁結束：投入 ${fmt(FISH.spent)}／回收 ${fmt(FISH.gained)} → ${net >= 0 ? '+' : ''}${fmt(net)} 枚`,
-    net >= 0 ? 'w' : 'd');
-  finishRound();
+  log(`漁結束：投入 ${fmt(FISH.spent)}／回收 ${fmt(FISH.gained)} → ${net >= 0 ? '+' : ''}${fmt(net)} 枚`);
+  // 轉場：喊「漁結束」＋結算，畫面才切回輪盤
+  bannerFx('漁結束', `投入 ${fmt(FISH.spent)}　回收 ${fmt(FISH.gained)}　${net >= 0 ? '+' : ''}${fmt(net)} 枚`,
+    'sea', T.rhythm.fishFx, () => {
+      $('stage').classList.remove('fishing');
+      finishRound();
+    });
 }
 
 /* ============ 美術：程式化向量壽司 ============
@@ -2180,9 +2212,13 @@ function renderSeat() {
     return;
   }
   box.innerHTML = '';
+  const cap = document.createElement('div');
+  cap.className = 'hint'; cap.style.margin = '0 0 4px';
+  cap.innerHTML = `本局得分上限：押注 ${fmt(S.betSum)} × ${fmt(T.econ.maxWinMul)} ＝ <b>${fmt(roundCap())}</b> 枚`;
+  box.appendChild(cap);
   S.plates.forEach(p => {
     const done = p.kind !== 'shun' && p.types.every(t => isHit(p, t));
-    const pay = p.kind === 'shun' ? p.per : Math.min(p.per * p.count, T.econ.plateCap);
+    const pay = p.kind === 'shun' ? p.per : p.per * p.count;
     const res = p.result == null ? '' :
       (p.result ? `<span class="sh-won">+${fmt(p.result)}</span>` : '<span class="sh-lost">未中</span>');
 
@@ -2348,7 +2384,7 @@ function refreshAll() {
     const lim = document.createElement('div'); lim.className = 'hint'; lim.style.margin = '4px 0 0';
     lim.innerHTML = can10 < 1
       ? '這個組合<b>已達上限</b>，不能再加盤了'
-      : `這個組合最多還能加 <b>${can10}</b> 盤（得分上限 ${fmt(T.econ.plateCap)} 枚）`;
+      : `這個組合最多還能加 <b>${can10}</b> 盤（同組合上限 ${T.econ.maxPlates} 盤）`;
     area.appendChild(lim);
   }
 
@@ -2565,7 +2601,7 @@ window.__TEST__ = {
   hitProb, multOf, newBoard, addPlate, deal, nextRound,
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
   SP_ITEMS, STATE_NAME, stateMul, catchChance, betLeft, startBetPhase, endFree, stepWheel,
-  autoFreePick, HIST, missingOf, addPlates, canAddCount, renderSeat, fitScreen, payRange, startFx, bannerFx, useFree, freeCands,
+  autoFreePick, HIST, missingOf, addPlates, canAddCount, roundCap, addWin, renderSeat, fitScreen, payRange, startFx, bannerFx, useFree, freeCands,
   refreshAll, KIND_SIZE, STAKE, gainStamp, renderStamps, BELT, makeBelt, pickBelt, beltAngle, refreshBeltPay, GW, GH, HD,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
   forceSP(item) {
