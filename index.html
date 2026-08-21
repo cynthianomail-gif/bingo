@@ -552,7 +552,7 @@
         <div class="row" style="margin-top:9px">
           <button class="btn" id="wNet">🕸️ 網（<span id="cNet">20</span>）</button>
           <button class="btn on" id="wGrab">🤏 單抓（<span id="cGrab">3</span>）</button>
-          <button class="btn" id="fishEnd">結束漁</button>
+          <button class="btn" id="fishRelease" disabled>✋ 放開</button>
         </div>
         <div class="hint" id="fishHint" style="margin-bottom:0"></div>
       </div>
@@ -598,7 +598,7 @@
 
 <script>
 'use strict';
-const APP_BUILD = 'B7';
+const APP_BUILD = 'B8';
 
 /* ============ 壽司種類（占位美術：emoji＋色塊，不使用競品素材） ============ */
 const SUSHI = [
@@ -685,8 +685,7 @@ const DEF = {
     catchRateGlow: 0.60,  // 發光魚群的捕獲率（攻略：魚群比一般魚容易獲得）
     reachDeg:     42,     // 自己面前可撈的角度（左右各 N 度）
     tugMs:       380,     // 拉扯每幾毫秒扣一次錢
-    tugCatch:   0.32,     // 每次拉扯「拉上來」的機率（會乘上內部狀態）
-    tugEscape:  0.18,     // 每次拉扯「被掙脫」的機率
+    tugCatch:   0.32,     // 每次拉扯「拉上來」的機率（會乘上內部狀態）；魚不會掙脫
     stateMode:     1,     // 內部狀態 0=回收期 1=普通 2=開放期
     openMul:       1.15,  // 開放期的捕獲率乘數
     recMul:        0.70,  // 回收期的捕獲率乘數
@@ -751,7 +750,6 @@ const TUNE_META = {
     ['reachDeg', '可撈角度（±度）', 10, 180, 2],
     ['tugMs', '拉扯間隔 ms', 120, 1200, 20],
     ['tugCatch', '拉扯 拉上來機率', 0.02, 0.9, 0.01],
-    ['tugEscape', '拉扯 被掙脫機率', 0.02, 0.9, 0.01],
     ['catchRate', '捕獲率 一般魚', 0.05, 1, 0.01],
     ['catchRateGlow', '捕獲率 發光魚群', 0.05, 1, 0.01],
     ['stateMode', '內部狀態', 0, 2, 1, ['回收期', '普通', '開放期']],
@@ -1475,7 +1473,8 @@ function startFishing(mode) {
   $('fishNet').textContent = '0';
   $('fishHint').innerHTML =
     `魚繞著漁場轉，<b>只撈得到自己面前那一區</b>。單抓＝勾住後拉扯，每 ${(T.fish.tugMs / 1000).toFixed(1)} 秒扣 ` +
-    `<b>${T.fish.grabCost}</b> 枚直到拉上來或被掙脫；網一次 <b>${T.fish.netCost}</b> 枚、範圍內一次判定。` +
+    `<b>${T.fish.grabCost}</b> 枚，<b>魚不會掙脫</b>——拉到上鉤為止，覺得太貴就按「放開」；` +
+    `網一次 <b>${T.fish.netCost}</b> 枚、範圍內一次判定。` +
     `　🔴 圈＝盤上還缺的種類（狀態：${STATE_NAME[T.fish.stateMode]}）`;
   log(`進入 ${$('fishTitle').textContent}（${T.fish.duration} 秒・${STATE_NAME[T.fish.stateMode]}）`);
   refreshAll();
@@ -1550,9 +1549,16 @@ function spawnFish(now) {
 }
 
 /* ---- 單抓＝拉扯：勾住後每 tugMs 扣一次錢，直到拉上來或被掙脫 ---- */
+/* 拉扯只有兩種結局：拉上來、或玩家自己放開。魚不會掙脫，所以拖越久花越多。 */
 function tugCatchP(f) {
-  const boost = f.school ? T.fish.catchRateGlow / T.fish.catchRate : 1;
-  return Math.max(0, Math.min(0.95, T.fish.tugCatch * boost * stateMul()));
+  return Math.max(0.01, Math.min(0.95, T.fish.tugCatch * stateMul()));
+}
+function releaseTug(byPlayer) {
+  if (!FISH.hook) return;
+  const n = FISH.hook.ticks * T.fish.grabCost;
+  FISH.hook = null;
+  if (byPlayer) { log(`🎣 放開了（這次拉扯花了 ${n} 枚）`); notice(`放開了 — 這次拉扯花了 ${fmt(n)} 枚`); }
+  refreshAll();
 }
 function startTug(f, now) {
   FISH.hook = { f, t0: now, last: now - T.fish.tugMs, ticks: 0, tension: 0 };
@@ -1568,18 +1574,11 @@ function stepTug(now) {
   if (S.balance < cost) { FISH.hook = null; notice('餘額不足，線放掉了'); return; }
   S.balance -= cost; S.betSum += cost; S.totalBet += cost; FISH.spent += cost;
   h.ticks++;
-  const pc = tugCatchP(f), pe = T.fish.tugEscape;
-  const r = Math.random();
-  if (r < pc) {                       // 拉上來了
+  if (Math.random() < tugCatchP(f)) {           // 拉上來了
     catchFish(f);
     FISH.hook = null;
-  } else if (r < pc + pe) {           // 被掙脫
-    spook(f, now);
-    FISH.hook = null;
-    log(`🎣 被掙脫（這次拉扯花了 ${h.ticks * cost} 枚）`);
-    notice(`被掙脫！這次拉扯花了 ${h.ticks * cost} 枚`);
   } else {
-    h.tension = Math.min(1, h.tension + 0.22);   // 還在拉
+    h.tension = Math.min(1, h.tension + 0.18);  // 還在拉，繼續扣錢
   }
   refreshAll();
 }
@@ -1601,7 +1600,7 @@ function fishLoop(now) {
     f.ang += f.av * dt * slow;
     f.wobPh += dt * (f === hooked ? 9 : 2.2);
   });
-  FISH.list = FISH.list.filter(f => !f.dead && now < f.until);
+  FISH.list = FISH.list.filter(f => !f.dead && (now < f.until || f === hooked));
   stepTug(now);
   drawFish(now);
   if (left <= 0) { endFishing(); return; }
@@ -1729,7 +1728,7 @@ function drawFish(now) {
     roundRect(fx, bx, by, bw * (0.25 + FISH.hook.tension * 0.75), 12, 6); fx.fill();
     fx.fillStyle = '#ffe6b3'; fx.font = 'bold 11px "Noto Sans TC", sans-serif';
     fx.textAlign = 'center'; fx.textBaseline = 'middle';
-    fx.fillText(`拉扯中… 已花 ${FISH.hook.ticks * T.fish.grabCost} 枚`, CX, by + 6);
+    fx.fillText(`拉扯中… 已花 ${fmt(FISH.hook.ticks * T.fish.grabCost)} 枚（可按放開）`, CX, by + 6);
     fx.restore();
   }
 
@@ -1860,7 +1859,7 @@ fcv.onclick = e => {
 };
 $('wNet').onclick = () => { FISH.weapon = 'net'; refreshAll(); };
 $('wGrab').onclick = () => { FISH.weapon = 'grab'; refreshAll(); };
-$('fishEnd').onclick = () => { if (S.phase === 'FISH') endFishing(); };
+$('fishRelease').onclick = () => releaseTug(true);
 
 function endFishing() {
   if (S.phase !== 'FISH' || FISH.over) return;
@@ -2609,10 +2608,17 @@ function refreshAll() {
     d.appendChild(b); sa.appendChild(d);
   }
 
-  // 漁的武器highlight
+  // 漁：武器 highlight ／ 拉扯中只能選擇放開
   if ($('wNet')) {
+    const tugging = !!FISH.hook;
     $('wNet').classList.toggle('on', FISH.weapon === 'net');
     $('wGrab').classList.toggle('on', FISH.weapon === 'grab');
+    $('wNet').disabled = tugging;
+    $('wGrab').disabled = tugging;
+    $('fishRelease').disabled = !tugging;
+    $('fishRelease').innerHTML = tugging
+      ? `✋ 放開（已花 ${fmt(FISH.hook.ticks * T.fish.grabCost)}）`
+      : '✋ 放開';
   }
 
   // 押注區：三種盤型都用同一套「點 chip 選種類 → 按押注」
@@ -2726,6 +2732,7 @@ function forceEvent(kind) {
   // 布丁／JP 需要印章，強開時先把印章補足，方便展示
   if (kind === 'purin' && S.stamps < T.sp.stampPurin) S.stamps = T.sp.stampPurin;
   if (kind === 'jp' && S.stamps < T.sp.stampJP) S.stamps = T.sp.stampJP;
+  if (S.wheelKT !== 1) { S.wheelKT = 1; FX.expand = performance.now(); }   // 強開也要先收掉迴轉帶、放大輪盤
   if (S.phase === 'BET') {
     S.drawOrder = shuffle([...Array(16).keys()]).slice(0, 5);
     S.balls = S.drawOrder.slice();
@@ -2898,8 +2905,9 @@ window.__TEST__ = {
   hitProb, multOf, newBoard, addPlate, deal, nextRound,
   startSP, dropEX, resolveSP, startFishing, endFishing, catchFish, settle,
   SP_ITEMS, STATE_NAME, stateMul, catchChance, betLeft, startBetPhase, endFree, stepWheel,
-  autoFreePick, HIST, missingOf, addPlates, canAddCount, roundCap, addWin, pickSlot, applyWheelScale, swapPane, inReach, startTug, stepTug, fishXY, plateDone, needMap, haveOf, renderSeat, fitScreen, payRange, startFx, bannerFx, useFree, freeCands,
-  refreshAll, KIND_SIZE, STAKE, setHits, hitProb, gainStamp, renderStamps, BELT, makeBelt, pickBelt, beltAngle, refreshBeltPay, GW, GH, HD,
+  autoFreePick, HIST, missingOf, addPlates, canAddCount, roundCap, addWin, pickSlot, applyWheelScale, swapPane, inReach, startTug, stepTug, releaseTug, fishXY, plateDone, needMap, haveOf, renderSeat, fitScreen, payRange, startFx, bannerFx, useFree, freeCands,
+  refreshAll, KIND_SIZE, STAKE, setHits, hitProb,
+  forceEvent, gainStamp, renderStamps, BELT, makeBelt, pickBelt, beltAngle, refreshBeltPay, GW, GH, HD,
   // 強制讓某一格變成指定獎項，方便逐條驗證老闆SP 的分支
   forceSP(item) {
     const free = []; for (let i = 0; i < 16; i++) if (!S.balls.includes(i)) free.push(i);
